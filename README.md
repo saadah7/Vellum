@@ -55,7 +55,7 @@ pip install -r requirements.txt
 
 4. Ensure Ollama is Running
 Vellum requires Ollama to be installed and running locally to host the models.
-ollama run llama3.1
+ollama run llama3.2
 
 
 🧠 The Vellum Workflow
