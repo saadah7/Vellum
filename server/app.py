@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from core.agents import get_interrogator
 from langchain_community.chat_message_histories import ChatMessageHistory
 
@@ -12,16 +12,24 @@ def get_session_history(session_id: str):
 
 @app.get("/interrogate")
 def interrogate(user_input: str, session_id: str = "Saad_01"):
-    # Pass user_input here so the agent can search the DB
-    agent = get_interrogator(user_input) 
-    history = get_session_history(session_id)
+    try:
+        # Pass the input to the agent
+        agent = get_interrogator(user_input) 
+        history = get_session_history(session_id)
+        
+        # Execute the chain
+        response = agent.invoke({
+            "input": user_input,
+            "history": history.messages
+        })
+        
+        # Save to memory
+        history.add_user_message(user_input)
+        history.add_ai_message(response.content)
+        
+        return {"vellum_response": response.content}
     
-    response = agent.invoke({
-        "input": user_input,
-        "history": history.messages
-    })
-    
-    history.add_user_message(user_input)
-    history.add_ai_message(response.content)
-    
-    return {"vellum_response": response.content}
+    except Exception as e:
+        # This will print the REAL error in your terminal
+        print(f"CRITICAL ERROR: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

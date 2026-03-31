@@ -4,68 +4,69 @@
 
 ---
 
-## 🏗️ Project Architecture (MVP)
+## 🏗️ Project Architecture (MVP Stable)
 
-The system is built with a modular **Client-Server** approach, separating AI reasoning from the web interface.
+The system uses a decoupled **Dual-Server** approach, separating the AI's reasoning engine from the reactive user interface.
 
 ```text
 vellum/
 ├── core/                # AI Intelligence (The Brain)
-│   ├── agents.py        # Logic for Interrogator, Architect, and Critic agents.
-│   └── graph.py         # LangGraph state machine for agent "debates."
+│   ├── agents.py        # Logic for the Interrogator & Agent orchestration.
+│   └── knowledge.py     # RAG Pipeline (Document Ingestion & ChromaDB).
 ├── server/              # Web Bridge (The API)
-│   └── app.py           # FastAPI server connecting the AI to the UI.
-├── knowledge/           # RAG Database (The Memory)
-│   └── data/            # Local design theory PDFs/Docs for ChromaDB.
+│   └── app.py           # FastAPI server with session-based memory.
+├── frontend/            # Reactive Dashboard (The Face)
+│   └── app.py           # Streamlit UI for the chat experience.
+├── data/                # Knowledge Base (Input)
+├── db/                  # Persistent Vector Store (ChromaDB)
 ├── .venv/               # Isolated Python environment.
-├── .env                 # Local configuration & environment variables.
 └── requirements.txt     # Project dependencies.
 
-
 🛠️ Technical Stack
-Intelligence: Llama 3.3 & Vision Models (via Ollama)
+Intelligence: Llama 3.2 (Local via Ollama)
 
-Orchestration: LangGraph (Stateful Multi-Agent Workflows)
+Orchestration: LangChain (Stateful Persistence & RAG)
 
-Memory: ChromaDB (Vector storage for Design Heuristics)
+Memory: ChromaDB (Persistent Vector storage for Design Heuristics)
 
 API: FastAPI (Asynchronous Python backend)
 
-Development: Python 3.10+, Virtual Environments (venv)
+UI: Streamlit (Reactive Python frontend)
+
+Compute: Optimized for local RTX 40-series hardware.
 
 🚀 Getting Started (Team Setup)
-Follow these steps to set up the Vellum local environment on your machine.
-
-1. Clone the Repository
-git clone [https://github.com/your-username/vellum.git](https://github.com/your-username/vellum.git)
-cd vellum 
-
-2. Set Up Virtual Environment
-Professional development requires isolated dependencies
-# Windows
-python -m venv venv
-.\venv\Scripts\activate
-
-# Mac/Linux
-python3 -m venv venv
-source venv/bin/activate
-
-3. Install Dependencies
+1. Environment & Dependencies
+PowerShell
+python -m venv .venv
+.\.venv\Scripts\activate
 pip install -r requirements.txt
 
-4. Ensure Ollama is Running
-Vellum requires Ollama to be installed and running locally to host the models.
-ollama run llama3.2
+2. Knowledge Ingestion (Syncing the Brain)
+Before the first run, or whenever you add new files to /data, run the ingestion script:
 
+PowerShell
+python -c "from core.knowledge import ingest_data; ingest_data()"
+3. Launching the System
+Vellum requires two parallel processes to be running:
+
+Terminal 1 (The Backend Engine):
+
+PowerShell
+uvicorn server.app:app --reload
+Terminal 2 (The Frontend Dashboard):
+
+PowerShell
+streamlit run frontend/app.py
 
 🧠 The Vellum Workflow
-Strategic Interrogation: The AI conducts a recursive interview to define the "Sacred Intent" of the project.
+Strategic Interrogation: The AI maintains a stateful session to conduct recursive interviews and define project "Intent."
 
-Technical Manifesto: Vellum generates a blueprint of design tokens and motion physics.
+Deterministic Grounding: Every response is audited against the local Knowledge Base (RAG) to ensure alignment with brand rules.
 
-Sovereign Audit: Upload a draft, and the Vision Agent critiques the work against the original strategy.
+Sovereign Inference: 100% of the thinking happens locally on your GPU. Zero data leakage.
 
 🛡️ Data Sovereignty & Privacy
-Vellum is built for absolute privacy. All inference (AI thinking) happens locally on your machine. No design drafts or client strategies are ever uploaded to a 3rd-party cloud server.
+Vellum is built for absolute privacy. All inference happens locally on your machine. No design drafts or client strategies are ever uploaded to a 3rd-party cloud server.
 
 Developed by the Vellum Team. Architecture for Intentional Design.
