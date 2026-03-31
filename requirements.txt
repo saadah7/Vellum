@@ -1,8 +1,19 @@
+# --- Backend & API ---
 fastapi
 uvicorn
+python-dotenv
+requests
+
+# --- AI & Orchestration ---
 langchain
 langchain-community
+langchain-ollama
 langgraph
+
+# --- Vector Database & RAG ---
 chromadb
-ollama
-python-dotenv
+sentence-transformers
+pypdf
+
+# --- Frontend Dashboard ---
+streamlit
