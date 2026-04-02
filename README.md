@@ -69,4 +69,5 @@ Sovereign Inference: 100% of the thinking happens locally on your GPU. Zero data
 🛡️ Data Sovereignty & Privacy
 Vellum is built for absolute privacy. All inference happens locally on your machine. No design drafts or client strategies are ever uploaded to a 3rd-party cloud server.
 
-Developed by the Vellum Team. Architecture for Intentional Design.
+Developed by the Vellum Team. Architecture for Intentional Design
+saad abdul hakeem
