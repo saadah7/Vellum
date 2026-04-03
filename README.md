@@ -71,3 +71,4 @@ Vellum is built for absolute privacy. All inference happens locally on your mach
 
 Developed by the Vellum Team. Architecture for Intentional Design
 saad abdul hakeem
+shaikh mustafa
