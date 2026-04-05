@@ -220,3 +220,25 @@ __pycache__/
 
 # Large Data Files (Optional - if your PDFs are huge)
 # data/*.pdf
+
+# === Vellum Governance Specifics ===
+# Ignore the indexed vector brain (The binary fragments)
+db/
+chroma/
+index/
+
+# Ignore LangChain's internal tracing/caching if enabled
+.langchain_cache/
+.pydantic_cache/
+
+# Ignore all log files (Storyboard logs, system crashes, etc.)
+*.log
+vellum_debug.txt
+
+# Ignore OS-specific clutter that can corrupt git diffs
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Optional: Ignore the raw data if you want to keep the "Rulebook" private
+# data/

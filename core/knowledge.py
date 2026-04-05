@@ -4,27 +4,49 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 
-# 1. This function 'reads' your data folder and saves it to a database
+DATA_PATH = "data"
+CHROMA_PATH = "db"
+
 def ingest_data():
     print("Vellum is learning from your data...")
-    loader = DirectoryLoader('./data', glob="./*.txt", loader_cls=TextLoader)
+    
+    # 1. Check if directory exists and has files
+    if not os.path.exists(DATA_PATH) or not os.listdir(DATA_PATH):
+        print(f"ERROR: No files found in {DATA_PATH}. Please add your .md files there.")
+        return
+
+    # 2. Load all Markdown and Text files
+    # We use glob="**/*.md" to ensure it grabs all the new Claude files
+    loader = DirectoryLoader(DATA_PATH, glob="**/*.md", loader_cls=TextLoader, loader_kwargs={'encoding': 'utf-8'})
     documents = loader.load()
     
-    # Split text into chunks so the AI can find specific sentences
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+    if not documents:
+        # Fallback to .txt if no .md found
+        loader = DirectoryLoader(DATA_PATH, glob="**/*.txt", loader_cls=TextLoader, loader_kwargs={'encoding': 'utf-8'})
+        documents = loader.load()
+
+    print(f"Loaded {len(documents)} document(s).")
+
+    # 3. Split text into chunks
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
     splits = text_splitter.split_documents(documents)
     
-    # Turn text into numbers (Vectors) and save to a folder named 'db'
-    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-    vectorstore = Chroma.from_documents(
-        documents=splits, 
-        embedding=embeddings, 
-        persist_directory="./db"
-    )
-    print("Learning complete. Database 'db' created.")
-    return vectorstore
+    if not splits:
+        print("ERROR: Files were loaded but no text content was found to split.")
+        return
 
-# 2. This function lets the Agent 'open' the database later
+    # 4. Create Embeddings
+    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+
+    # 5. Store in Chroma
+    vectorstore = Chroma.from_documents(
+        documents=splits,
+        embedding=embeddings,
+        persist_directory=CHROMA_PATH
+    )
+    
+    print(f"✅ Success! Vellum's brain is now populated with {len(splits)} design heuristics.")
+
 def get_vectorstore():
     embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-    return Chroma(persist_directory="./db", embedding_function=embeddings)
+    return Chroma(persist_directory=CHROMA_PATH, embedding_function=embeddings)

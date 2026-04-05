@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Form
 from core.graph import vellum_app
 from core.knowledge import get_vectorstore
 from langchain_community.chat_message_histories import ChatMessageHistory
@@ -11,33 +11,40 @@ def get_session_history(session_id: str):
         store[session_id] = ChatMessageHistory()
     return store[session_id]
 
-@app.get("/interrogate")
-async def interrogate(user_input: str, session_id: str = "Saad_01"):
+# 1. CHANGED TO POST: To support large client briefs and future image uploads
+@app.post("/interrogate")
+async def interrogate(
+    user_input: str = Form(...), 
+    session_id: str = Form("Saad_01"),
+    client_brief: str = Form("General Design Principles") # NEW: Specific requirements
+):
     try:
-        # 1. Fetch RAG Context (The "Rulebook")
+        # 2. Fetch RAG Context (The Universal Rulebook)
+        # We increase k to 5 to pull from your 15+ new specialized files
         vectorstore = get_vectorstore()
-        relevant_docs = vectorstore.similarity_search(user_input, k=3)
+        relevant_docs = vectorstore.similarity_search(user_input, k=5)
         context = "\n".join([doc.page_content for doc in relevant_docs])
         
-        # 2. Get Chat History
+        # 3. Get Chat History
         history = get_session_history(session_id)
         
-        # 3. Invoke the Agentic Graph (The Debate)
-        # Initial state for the LangGraph
+        # 4. Invoke the Agentic Graph (The Adversarial Debate)
+        # Initial state now includes the 'client_brief' for dynamic governance
         initial_state = {
             "input": user_input,
             "context": context,
+            "client_brief": client_brief, # NEW: Injected into the state
             "history": history.messages,
             "revision_count": 0
         }
         
-        # This runs the Architect -> Critic loop
+        # Runs the Architect -> Critic feedback loop
         result = vellum_app.invoke(initial_state)
         
-        # 4. Extract the approved output
+        # 5. Extract the approved output
         final_answer = result.get("final_output") or result.get("architect_response")
         
-        # 5. Update Memory
+        # 6. Update Persistent Memory
         history.add_user_message(user_input)
         history.add_ai_message(final_answer)
         
@@ -49,4 +56,5 @@ async def interrogate(user_input: str, session_id: str = "Saad_01"):
     
     except Exception as e:
         print(f"SYSTEM CRASH: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Agent Debate Failed: {str(e)}")
+        # Log the full error to the terminal for debugging the RTX 4080 memory
+        raise HTTPException(status_code=500, detail=f"Vellum Engine Error: {str(e)}")
