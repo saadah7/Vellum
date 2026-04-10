@@ -59,7 +59,7 @@ def critic_node(state: AgentState):
     else:
         feedback = response.content.strip()
         print(f"❌ [LOG] CRITIC: 'REJECTED' - Reason: {feedback[:100]}...")
-        return {"feedback": feedback, "final_output": None}
+        return {"critic_feedback": feedback, "final_output": None}
 
 # 4. The Router: Decide the next state
 def should_continue(state: AgentState):

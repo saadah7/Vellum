@@ -28,7 +28,7 @@ def ingest_data():
     print(f"Loaded {len(documents)} document(s).")
 
     # 3. Split text into chunks
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=400, chunk_overlap=50)
     splits = text_splitter.split_documents(documents)
     
     if not splits:
