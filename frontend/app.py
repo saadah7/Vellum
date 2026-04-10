@@ -380,18 +380,19 @@ if prompt := st.chat_input("Describe a layout or ask Vellum to audit a design de
             response = requests.post(api_url, data=data_payload, timeout=300)
 
         if response.status_code == 200:
-            result      = response.json()
-            ai_response = result.get("vellum_response", "Error parsing response.")
-            status      = result.get("status", "UNKNOWN")
-            revisions   = result.get("revisions", 1)
+            result          = response.json()
+            ai_response     = result.get("vellum_response", "Error parsing response.")
+            status          = result.get("status", "UNKNOWN")
+            revisions       = result.get("revisions", 1)
+            critic_feedback = result.get("critic_feedback", "")
 
             # Update metrics
-            st.session_state.last_status       = status
-            st.session_state.last_revisions    = revisions
+            st.session_state.last_status        = status
+            st.session_state.last_revisions     = revisions
             st.session_state.last_max_revisions = max_revisions
 
-            # Parse violations from full response text
-            p0_codes, p1_codes = parse_violations(ai_response)
+            # Parse violation chips from critic_feedback (where [P0/P1: code] tags actually live)
+            p0_codes, p1_codes = parse_violations(critic_feedback)
 
             gov_data = {
                 "status": status,
@@ -404,10 +405,10 @@ if prompt := st.chat_input("Describe a layout or ask Vellum to audit a design de
             # Render response
             with st.chat_message("assistant"):
                 st.markdown(ai_response)
-                p0_chips = "".join(f'<span class="chip-p0">P0: {c}</span>' for c in p0_codes)
-                p1_chips = "".join(f'<span class="chip-p1">P1: {c}</span>' for c in p1_codes)
+                p0_chips   = "".join(f'<span class="chip-p0">P0: {c}</span>' for c in p0_codes)
+                p1_chips   = "".join(f'<span class="chip-p1">P1: {c}</span>' for c in p1_codes)
                 chips_html = p0_chips + p1_chips
-                rev_str = f"{revisions} / {max_revisions} revisions"
+                rev_str    = f"{revisions} / {max_revisions} revisions"
                 st.markdown(f"""
                 <div class="gov-card">
                     <div class="gov-card-title">Governance Report</div>
@@ -422,6 +423,12 @@ if prompt := st.chat_input("Describe a layout or ask Vellum to audit a design de
                 "gov": gov_data,
             })
 
+        elif response.status_code == 503:
+            ai_response = "⚠️ Ollama is not reachable. Make sure it is running and `llama3.2` is loaded (`ollama run llama3.2`)."
+            with st.chat_message("assistant"):
+                st.markdown(ai_response)
+            st.session_state.messages.append({"role": "assistant", "content": ai_response})
+
         else:
             ai_response = f"Backend Error {response.status_code}: {response.text}"
             with st.chat_message("assistant"):
@@ -429,7 +436,7 @@ if prompt := st.chat_input("Describe a layout or ask Vellum to audit a design de
             st.session_state.messages.append({"role": "assistant", "content": ai_response})
 
     except requests.exceptions.ConnectionError:
-        ai_response = "Cannot reach the backend. Start the server: `uvicorn server.app:app --reload`"
+        ai_response = "⚠️ Cannot reach the backend. Run: `uvicorn server.app:app --reload`"
         with st.chat_message("assistant"):
             st.markdown(ai_response)
         st.session_state.messages.append({"role": "assistant", "content": ai_response})

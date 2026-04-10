@@ -4,9 +4,9 @@ from core.graph import vellum_app
 from core.knowledge import get_vectorstore
 from langchain_community.chat_message_histories import ChatMessageHistory
 
-# Inputs that match this pattern skip the debate loop entirely
+# Only bypass the loop for very short, clearly off-topic inputs (≤ 3 words)
 _CONVERSATIONAL = re.compile(
-    r"^\s*(hi|hello|hey|sup|yo|thanks|thank you|ok|okay|cool|great|nice|bye|goodbye|who are you|what are you|what is vellum)\s*[!?.]*\s*$",
+    r"^\s*(hi|hello|hey|sup|yo|thanks|thank you|ok|okay|cool|great|nice|bye|goodbye)\s*[!?.]*\s*$",
     re.IGNORECASE
 )
 
@@ -28,7 +28,7 @@ def get_session_history(session_id: str):
         store[session_id] = ChatMessageHistory()
     return store[session_id]
 
-# 1. CHANGED TO POST: To support large client briefs and future image uploads
+
 @app.post("/interrogate")
 async def interrogate(
     user_input: str = Form(...),
@@ -37,53 +37,80 @@ async def interrogate(
     platform: str = Form("web")
 ):
     try:
-        # 2. Short-circuit conversational inputs — no debate loop needed
-        if _CONVERSATIONAL.match(user_input):
+        # 1. Short-circuit very short conversational inputs
+        if _CONVERSATIONAL.match(user_input.strip()):
             return {
                 "vellum_response": "Hello. I'm Vellum — a design governance engine. Describe a UI layout, component, or design decision and I'll audit it against WCAG, Material 3, and your client brief.",
                 "revisions": 0,
-                "status": "APPROVED"
+                "status": "APPROVED",
+                "critic_feedback": "",
             }
 
-        # 3. Fetch RAG Context filtered to the declared platform
-        vectorstore = get_vectorstore()
-        allowed_scopes = PLATFORM_SCOPE_MAP.get(platform, ["all"])
-        relevant_docs = vectorstore.similarity_search(
-            user_input, k=3,
-            filter={"platform_scope": {"$in": allowed_scopes}}
-        )
+        # 2. Fetch RAG context with platform filter — fall back to unfiltered if empty
+        try:
+            vectorstore = get_vectorstore()
+            allowed_scopes = PLATFORM_SCOPE_MAP.get(platform, ["all"])
+            relevant_docs = vectorstore.similarity_search(
+                user_input, k=3,
+                filter={"platform_scope": {"$in": allowed_scopes}}
+            )
+            # Fallback: if filtered query returns nothing (old DB / metadata missing), run unfiltered
+            if not relevant_docs:
+                print("[WARN] Platform-filtered RAG returned 0 results — falling back to unfiltered search.")
+                relevant_docs = vectorstore.similarity_search(user_input, k=3)
+        except Exception as rag_err:
+            print(f"[WARN] RAG error ({rag_err}) — continuing with empty context.")
+            relevant_docs = []
+
         context = "\n".join([doc.page_content for doc in relevant_docs])
 
-        # 3. Get Chat History
+        # 3. Get chat history
         history = get_session_history(session_id)
 
-        # 4. Invoke the Agentic Graph
+        # 4. Invoke the debate loop
         initial_state = {
             "input": user_input,
             "context": context,
             "client_brief": client_brief,
             "platform": platform,
             "history": history.messages,
-            "revision_count": 0
+            "revision_count": 0,
         }
-        
-        # Runs the Architect -> Critic feedback loop
+
         result = vellum_app.invoke(initial_state)
-        
-        # 5. Extract the approved output
-        final_answer = result.get("final_output") or result.get("architect_response")
-        
-        # 6. Update Persistent Memory
+
+        # 5. Extract outputs
+        final_answer   = result.get("final_output") or result.get("architect_response", "")
+        critic_verdict = result.get("critic_verdict", "")
+        critic_feedback = result.get("critic_feedback") or ""
+
+        # Derive status from the critic's actual verdict
+        if "APPROVED_WITH_WARNING" in critic_verdict:
+            status = "APPROVED_WITH_WARNING"
+        elif result.get("final_output"):
+            status = "APPROVED"
+        else:
+            status = "MAX_REVISIONS_REACHED"
+
+        # 6. Persist to session history
         history.add_user_message(user_input)
         history.add_ai_message(final_answer)
-        
+
         return {
             "vellum_response": final_answer,
             "revisions": result.get("revision_count", 1),
-            "status": "APPROVED" if result.get("final_output") else "MAX_REVISIONS_REACHED"
+            "status": status,
+            "critic_feedback": critic_feedback,  # passed to frontend for violation chip parsing
         }
-    
+
     except Exception as e:
-        print(f"SYSTEM CRASH: {str(e)}")
-        # Log the full error to the terminal for debugging the RTX 4080 memory
-        raise HTTPException(status_code=500, detail=f"Vellum Engine Error: {str(e)}")
+        err = str(e)
+        print(f"[CRASH] {err}")
+
+        # Friendly message for common Ollama failures
+        if "connection" in err.lower() or "refused" in err.lower() or "ollama" in err.lower():
+            raise HTTPException(
+                status_code=503,
+                detail="Ollama is not reachable. Make sure it is running and llama3.2 is loaded."
+            )
+        raise HTTPException(status_code=500, detail=f"Vellum Engine Error: {err}")
