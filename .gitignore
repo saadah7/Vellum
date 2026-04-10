@@ -242,3 +242,5 @@ desktop.ini
 
 # Optional: Ignore the raw data if you want to keep the "Rulebook" private
 # data/
+# Claude Code internals (worktrees, plans, memory)
+.claude/
