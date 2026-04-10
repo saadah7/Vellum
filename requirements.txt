@@ -8,6 +8,7 @@ requests
 langchain
 langchain-community
 langchain-ollama
+langchain-huggingface
 langgraph
 
 # --- Vector Database & RAG ---

@@ -290,7 +290,7 @@ RAMS Audit: {rams_audit}"""
 st.markdown("""
 <div class="vellum-header">
     <div class="vellum-wordmark">VELLUM</div>
-    <div class="vellum-subtitle">Design Governance Engine · RTX 4080 Super</div>
+    <div class="vellum-subtitle">Design Governance Engine · Powered by Ollama</div>
 </div>
 """, unsafe_allow_html=True)
 
