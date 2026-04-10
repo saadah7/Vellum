@@ -1,75 +1,86 @@
-# 🟣 Vellum: The Sovereign Design Architect
+# Vellum
 
-**Vellum** is a local-first, multi-agent AI system designed for professional design governance. Unlike generic generators, Vellum acts as a **Senior Creative Director**, extracting strategic intent and auditing manual craftsmanship to ensure "intentional rule-breaking" leads to brand resonance.
+**Local-first AI design governance. Every output audited against 263 heuristics before it reaches you.**
+
+Vellum runs an adversarial Architect–Critic debate loop entirely on your machine. The Architect drafts a design strategy; the Senior Critic audits it across 8 gates (WCAG contrast, typography, spacing, elevation, focus, ARIA, motion, Rams principles) and rejects anything that fails. The loop continues until the design is approved or max revisions are hit.
 
 ---
 
-## 🏗️ Project Architecture (MVP Stable)
+## What it does
 
-The system uses a decoupled **Dual-Server** approach, separating the AI's reasoning engine from the reactive user interface.
+- **Governs** — enforces WCAG 2.1, Material 3, Apple HIG, and 263 internal heuristics on every response
+- **Adapts** — adjusts rules by declared platform (web / Android / iOS / cross-platform / macOS / watchOS)
+- **Reports** — returns structured violation codes (e.g. `[P0: contrast_fail]`) with severity and fix guidance
 
-```text
-vellum/
-├── core/                # AI Intelligence (The Brain)
-│   ├── agents.py        # Logic for the Interrogator & Agent orchestration.
-│   └── knowledge.py     # RAG Pipeline (Document Ingestion & ChromaDB).
-├── server/              # Web Bridge (The API)
-│   └── app.py           # FastAPI server with session-based memory.
-├── frontend/            # Reactive Dashboard (The Face)
-│   └── app.py           # Streamlit UI for the chat experience.
-├── data/                # Knowledge Base (Input)
-├── db/                  # Persistent Vector Store (ChromaDB)
-├── .venv/               # Isolated Python environment.
-└── requirements.txt     # Project dependencies.
+---
 
-🛠️ Technical Stack
-Intelligence: Llama 3.2 (Local via Ollama)
+## Stack
 
-Orchestration: LangChain (Stateful Persistence & RAG)
+| Layer | Technology |
+|---|---|
+| LLM | Llama 3.2 via Ollama (local) |
+| Orchestration | LangGraph + LangChain |
+| Knowledge base | ChromaDB (27 spec files, ~400-char chunks) |
+| API | FastAPI |
+| UI | Streamlit |
+| Compute | RTX 4080 Super |
 
-Memory: ChromaDB (Persistent Vector storage for Design Heuristics)
+---
 
-API: FastAPI (Asynchronous Python backend)
+## Quickstart
 
-UI: Streamlit (Reactive Python frontend)
-
-Compute: Optimized for local RTX 40-series hardware.
-
-🚀 Getting Started (Team Setup)
-1. Environment & Dependencies
-PowerShell
+**1. Install dependencies**
+```bash
 python -m venv .venv
-.\.venv\Scripts\activate
+.\.venv\Scripts\activate       # Windows
 pip install -r requirements.txt
+```
 
-2. Knowledge Ingestion (Syncing the Brain)
-Before the first run, or whenever you add new files to /data, run the ingestion script:
+**2. Pull the model**
+```bash
+ollama pull llama3.2
+```
 
-PowerShell
+**3. Ingest the knowledge base**
+```bash
 python -c "from core.knowledge import ingest_data; ingest_data()"
-3. Launching the System
-Vellum requires two parallel processes to be running:
+```
+Re-run this whenever files in `/data` are added or changed.
 
-Terminal 1 (The Backend Engine):
+**4. Launch**
 
-PowerShell
+Terminal 1 — backend:
+```bash
 uvicorn server.app:app --reload
-Terminal 2 (The Frontend Dashboard):
+```
 
-PowerShell
+Terminal 2 — frontend:
+```bash
 streamlit run frontend/app.py
+```
 
-🧠 The Vellum Workflow
-Strategic Interrogation: The AI maintains a stateful session to conduct recursive interviews and define project "Intent."
+Open `http://localhost:8501`.
 
-Deterministic Grounding: Every response is audited against the local Knowledge Base (RAG) to ensure alignment with brand rules.
+---
 
-Sovereign Inference: 100% of the thinking happens locally on your GPU. Zero data leakage.
+## Architecture
 
-🛡️ Data Sovereignty & Privacy
-Vellum is built for absolute privacy. All inference happens locally on your machine. No design drafts or client strategies are ever uploaded to a 3rd-party cloud server.
+```
+vellum/
+├── core/
+│   ├── agents.py       # Architect + Critic agents (LangChain + Ollama)
+│   ├── graph.py        # LangGraph debate loop + AgentState
+│   └── knowledge.py    # RAG ingestion (ChromaDB, 400-char chunks)
+├── server/
+│   └── app.py          # FastAPI — /interrogate endpoint
+├── frontend/
+│   └── app.py          # Streamlit UI
+├── data/               # 27 governance spec files (.md)
+└── db/                 # ChromaDB vector store (gitignored)
+```
 
-Developed by the Vellum Team. Architecture for Intentional Design
-Saad Abdul Hakeem
-Shaikh Mustafa
-M A Naser Askari
+---
+
+## Team
+
+Saad Abdul Hakeem · Shaikh Mustafa · M A Naser Askari
