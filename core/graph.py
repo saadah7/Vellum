@@ -7,7 +7,8 @@ from core.agents import get_architect, get_critic
 class AgentState(TypedDict):
     input: str
     context: str           # Universal Laws from ChromaDB
-    client_brief: str      # NEW: Specific Client Requirements from UI
+    client_brief: str      # Specific Client Requirements from UI
+    platform: str          # Declared platform target (android|ios|web|cross-platform|macos|watch)
     history: List[Any]
     architect_response: str
     critic_feedback: str
@@ -19,8 +20,7 @@ def architect_node(state: AgentState):
     iteration = state.get('revision_count', 0) + 1
     print(f"\n[STORYBOARD] --- ARCHITECT (Attempt #{iteration}) ---")
     
-    # Updated: Now passing BOTH universal context and the specific client brief
-    agent = get_architect(state['context'], state['client_brief'])
+    agent = get_architect(state['context'], state['client_brief'], state.get('platform', 'web'))
     
     # If the critic has provided feedback, we force the architect to address it
     current_input = state['input']
@@ -44,8 +44,7 @@ def architect_node(state: AgentState):
 def critic_node(state: AgentState):
     print(f"\n[STORYBOARD] --- SENIOR CRITIC (Auditing Attempt #{state['revision_count']}) ---")
     
-    # Updated: Now auditing against universal rules AND the client brief
-    agent = get_critic(state['context'], state['client_brief'])
+    agent = get_critic(state['context'], state['client_brief'], state.get('platform', 'web'))
     response = agent.invoke({
         "input": state['architect_response']
     })

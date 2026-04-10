@@ -6,6 +6,16 @@ from langchain_community.chat_message_histories import ChatMessageHistory
 app = FastAPI()
 store = {}
 
+# Maps each platform to the platform_scope metadata tags that are relevant for it
+PLATFORM_SCOPE_MAP = {
+    "android":        ["all", "android_web_cross"],
+    "ios":            ["all"],
+    "web":            ["all", "web_cross", "android_web_cross"],
+    "cross-platform": ["all", "web_cross", "android_web_cross", "cross"],
+    "macos":          ["all"],
+    "watch":          ["all"],
+}
+
 def get_session_history(session_id: str):
     if session_id not in store:
         store[session_id] = ChatMessageHistory()
@@ -14,26 +24,30 @@ def get_session_history(session_id: str):
 # 1. CHANGED TO POST: To support large client briefs and future image uploads
 @app.post("/interrogate")
 async def interrogate(
-    user_input: str = Form(...), 
+    user_input: str = Form(...),
     session_id: str = Form("Saad_01"),
-    client_brief: str = Form("General Design Principles") # NEW: Specific requirements
+    client_brief: str = Form("General Design Principles"),
+    platform: str = Form("web")
 ):
     try:
-        # 2. Fetch RAG Context (The Universal Rulebook)
-        # We increase k to 5 to pull from your 15+ new specialized files
+        # 2. Fetch RAG Context filtered to the declared platform
         vectorstore = get_vectorstore()
-        relevant_docs = vectorstore.similarity_search(user_input, k=5)
+        allowed_scopes = PLATFORM_SCOPE_MAP.get(platform, ["all"])
+        relevant_docs = vectorstore.similarity_search(
+            user_input, k=3,
+            filter={"platform_scope": {"$in": allowed_scopes}}
+        )
         context = "\n".join([doc.page_content for doc in relevant_docs])
-        
+
         # 3. Get Chat History
         history = get_session_history(session_id)
-        
-        # 4. Invoke the Agentic Graph (The Adversarial Debate)
-        # Initial state now includes the 'client_brief' for dynamic governance
+
+        # 4. Invoke the Agentic Graph
         initial_state = {
             "input": user_input,
             "context": context,
-            "client_brief": client_brief, # NEW: Injected into the state
+            "client_brief": client_brief,
+            "platform": platform,
             "history": history.messages,
             "revision_count": 0
         }

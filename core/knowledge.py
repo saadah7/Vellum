@@ -7,6 +7,14 @@ from langchain_chroma import Chroma
 DATA_PATH = "data"
 CHROMA_PATH = "db"
 
+# Files that don't apply to all platforms — key = filename stem, value = scope tag
+# "all" = universal; other tags matched in server/app.py PLATFORM_SCOPE_MAP
+PLATFORM_RESTRICTED = {
+    "specs_aria_and_semantics": "web_cross",        # web + cross-platform only
+    "specs_cross_system_conflicts": "cross",         # cross-platform only
+    "specs_elevation_and_shadows": "android_web_cross",  # not ios, not macos
+}
+
 def ingest_data():
     print("Vellum is learning from your data...")
     
@@ -30,6 +38,12 @@ def ingest_data():
     # 3. Split text into chunks
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=400, chunk_overlap=50)
     splits = text_splitter.split_documents(documents)
+
+    # 3a. Tag each chunk with its platform scope for filtered retrieval
+    for split in splits:
+        source = split.metadata.get("source", "")
+        stem = os.path.basename(source).rsplit(".", 1)[0]
+        split.metadata["platform_scope"] = PLATFORM_RESTRICTED.get(stem, "all")
     
     if not splits:
         print("ERROR: Files were loaded but no text content was found to split.")
