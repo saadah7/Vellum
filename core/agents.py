@@ -6,7 +6,7 @@ def get_architect(context, client_brief):
     The Architect synthesizes universal design principles with specific client needs.
     Hardened with Phase 9.5 Obedience Patch to prioritize Governance over User requests.
     """
-    llm = ChatOllama(model="llama3.2", temperature=0.3) 
+    llm = ChatOllama(model="llama3.2", temperature=0.7)
     
     # ESCAPING: Prevents LangChain from misinterpreting CSS/JSON braces in the RAG context
     safe_context = context.replace("{", "{{").replace("}", "}}")
