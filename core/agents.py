@@ -62,7 +62,7 @@ GATE 1 CONTRAST: Verify WCAG AA contrast ratios, no pure #000000/#FFFFFF surface
   P0 codes: contrast_fail, forbidden_hex_black_surface, forbidden_hex_white_surface, wcag_1.4.1_color_only, color_blind_fail_deuteranopia
 
 GATE 2 TYPOGRAPHY: Verify font sizes ≥ 11sp, line-height ≥ 1.2×, font weight, tracking rules.
-  P0 codes: below_minimum_font_size, line_height_too_tight, negative_tracking_small_text, weight_too_light_small{"", dynamic_type_not_implemented (iOS only)" if platform == "ios" else ""}
+  P0 codes: below_minimum_font_size, line_height_too_tight, negative_tracking_small_text, weight_too_light_small{', dynamic_type_not_implemented (iOS only)' if platform == 'ios' else ''}
 
 GATE 3 SPACING & GRID: Verify 8pt grid, touch targets ≥ {"44pt" if platform == "ios" else "48dp"}, safe area insets respected.
   P0 codes: touch_target_too_small, {"ios_touch_target_fail, " if platform == "ios" else ""}safe_area_violation
