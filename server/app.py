@@ -1,7 +1,14 @@
+import re
 from fastapi import FastAPI, HTTPException, Form
 from core.graph import vellum_app
 from core.knowledge import get_vectorstore
 from langchain_community.chat_message_histories import ChatMessageHistory
+
+# Inputs that match this pattern skip the debate loop entirely
+_CONVERSATIONAL = re.compile(
+    r"^\s*(hi|hello|hey|sup|yo|thanks|thank you|ok|okay|cool|great|nice|bye|goodbye|who are you|what are you|what is vellum)\s*[!?.]*\s*$",
+    re.IGNORECASE
+)
 
 app = FastAPI()
 store = {}
@@ -30,7 +37,15 @@ async def interrogate(
     platform: str = Form("web")
 ):
     try:
-        # 2. Fetch RAG Context filtered to the declared platform
+        # 2. Short-circuit conversational inputs — no debate loop needed
+        if _CONVERSATIONAL.match(user_input):
+            return {
+                "vellum_response": "Hello. I'm Vellum — a design governance engine. Describe a UI layout, component, or design decision and I'll audit it against WCAG, Material 3, and your client brief.",
+                "revisions": 0,
+                "status": "APPROVED"
+            }
+
+        # 3. Fetch RAG Context filtered to the declared platform
         vectorstore = get_vectorstore()
         allowed_scopes = PLATFORM_SCOPE_MAP.get(platform, ["all"])
         relevant_docs = vectorstore.similarity_search(

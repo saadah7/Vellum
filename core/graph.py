@@ -27,9 +27,12 @@ def architect_node(state: AgentState):
     if state.get('critic_feedback'):
         print(f"[LOG] Addressing Critic's Feedback...")
         current_input = (
-            f"PREVIOUS FEEDBACK: {state['critic_feedback']}\n\n"
-            f"YOUR TASK: Improve your previous response based on the feedback while "
-            f"staying true to the original request: {state['input']}"
+            f"REVISION REQUIRED. The Critic found violations in your previous draft.\n"
+            f"VIOLATIONS TO FIX:\n{state['critic_feedback']}\n\n"
+            f"Rewrite your design specification to resolve every violation above. "
+            f"Keep your response in professional specification format. "
+            f"Do not list the audit gates. Do not use letter format. "
+            f"Original user request: {state['input']}"
         )
     
     response = agent.invoke({"input": current_input, "history": state['history']})
