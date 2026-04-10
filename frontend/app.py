@@ -30,17 +30,19 @@ with st.sidebar:
     
     client_name = st.text_input("Client Name", placeholder="e.g., Nexus FinTech")
     industry = st.selectbox("Industry", ["Tech", "Healthcare", "Luxury", "Educational", "Creative"])
-    
+    platform = st.selectbox("Platform Target", ["web", "android", "ios", "cross-platform", "macos", "watch"])
+
     brand_reqs = st.text_area(
-        "Brand Requirements & Colors", 
+        "Brand Requirements & Colors",
         placeholder="e.g., Primary: #0070FF, Tone: Minimalist, Typography: Sans-serif only.",
         height=200
     )
-    
+
     # Constructing the Brief String for the Backend
     full_brief = f"""
     Client: {client_name}
     Industry: {industry}
+    Platform: {platform}
     Brand Constraints: {brand_reqs}
     """
     
@@ -70,7 +72,8 @@ if prompt := st.chat_input("Ask Vellum to audit a layout or draft a strategy..."
     data_payload = {
         "user_input": prompt,
         "client_brief": full_brief,
-        "session_id": "Saad_01"
+        "session_id": "Saad_01",
+        "platform": platform
     }
 
     try:
