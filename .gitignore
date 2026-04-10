@@ -244,3 +244,10 @@ desktop.ini
 # data/
 # Claude Code internals (worktrees, plans, memory)
 .claude/
+
+# Presentation files
+*.pptx
+vellum_ppt.mjs
+package.json
+package-lock.json
+node_modules/
