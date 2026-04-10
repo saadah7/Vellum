@@ -12,6 +12,7 @@ class AgentState(TypedDict):
     history: List[Any]
     architect_response: str
     critic_feedback: str
+    critic_verdict: str    # APPROVED | APPROVED_WITH_WARNING | REJECTED
     revision_count: int
     final_output: str
 
@@ -27,9 +28,12 @@ def architect_node(state: AgentState):
     if state.get('critic_feedback'):
         print(f"[LOG] Addressing Critic's Feedback...")
         current_input = (
-            f"PREVIOUS FEEDBACK: {state['critic_feedback']}\n\n"
-            f"YOUR TASK: Improve your previous response based on the feedback while "
-            f"staying true to the original request: {state['input']}"
+            f"REVISION REQUIRED. The Critic found violations in your previous draft.\n"
+            f"VIOLATIONS TO FIX:\n{state['critic_feedback']}\n\n"
+            f"Rewrite your design specification to resolve every violation above. "
+            f"Keep your response in professional specification format. "
+            f"Do not list the audit gates. Do not use letter format. "
+            f"Original user request: {state['input']}"
         )
     
     response = agent.invoke({"input": current_input, "history": state['history']})
@@ -49,16 +53,23 @@ def critic_node(state: AgentState):
         "input": state['architect_response']
     })
     
-    # Check if the Critic approved the work
-    is_approved = "APPROVED" in response.content.upper()
-    
+    # Check critic verdict — order matters: check WARNING before plain APPROVED
+    content_upper = response.content.upper()
+    is_warning  = "APPROVED_WITH_WARNING" in content_upper
+    is_approved = is_warning or ("APPROVED" in content_upper and "REJECTED" not in content_upper)
+
     if is_approved:
-        print("✅ [LOG] CRITIC: 'APPROVED' - Brand standards & Client requirements met.")
-        return {"final_output": state['architect_response'], "critic_feedback": None}
+        verdict = "APPROVED_WITH_WARNING" if is_warning else "APPROVED"
+        print(f"✅ [LOG] CRITIC: '{verdict}'")
+        return {
+            "final_output": state['architect_response'],
+            "critic_feedback": response.content.strip(),  # kept so UI can surface P1 warnings
+            "critic_verdict": verdict,
+        }
     else:
         feedback = response.content.strip()
-        print(f"❌ [LOG] CRITIC: 'REJECTED' - Reason: {feedback[:100]}...")
-        return {"critic_feedback": feedback, "final_output": None}
+        print(f"❌ [LOG] CRITIC: 'REJECTED' - {feedback[:100]}...")
+        return {"critic_feedback": feedback, "critic_verdict": "REJECTED", "final_output": None}
 
 # 4. The Router: Decide the next state
 def should_continue(state: AgentState):

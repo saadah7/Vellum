@@ -23,22 +23,45 @@ Vellum runs an adversarial Architect–Critic debate loop entirely on your machi
 | Knowledge base | ChromaDB (27 spec files, ~400-char chunks) |
 | API | FastAPI |
 | UI | Streamlit |
-| Compute | RTX 4080 Super |
+
+---
+
+## Requirements
+
+- Python 3.10+
+- [Ollama](https://ollama.com) installed and running
+- 8 GB RAM minimum (16 GB recommended)
+- GPU optional — Ollama runs on CPU, NVIDIA CUDA, and Apple Silicon automatically
 
 ---
 
 ## Quickstart
 
-**1. Install dependencies**
+**1. Install Ollama and pull the model**
+
+Download from [ollama.com](https://ollama.com), then:
 ```bash
-python -m venv .venv
-.\.venv\Scripts\activate       # Windows
+ollama pull llama3.2
+```
+
+**2. Clone and install dependencies**
+```bash
+git clone https://github.com/saadah7/Vellum.git
+cd Vellum
+```
+
+Windows:
+```bash
+python -m venv venv
+venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-**2. Pull the model**
+macOS / Linux:
 ```bash
-ollama pull llama3.2
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 ```
 
 **3. Ingest the knowledge base**
@@ -78,6 +101,14 @@ vellum/
 ├── data/               # 27 governance spec files (.md)
 └── db/                 # ChromaDB vector store (gitignored)
 ```
+
+---
+
+## Notes
+
+- First query may be slow while Ollama loads the model into memory
+- CPU-only machines will work but expect 2–5 min per response
+- The debate loop runs up to 3 revisions by default (adjustable in the sidebar)
 
 ---
 
