@@ -12,9 +12,10 @@ class AgentState(TypedDict):
     history: List[Any]
     architect_response: str
     critic_feedback: str
-    critic_verdict: str    # APPROVED | APPROVED_WITH_WARNING | REJECTED
+    critic_verdict: str    # APPROVED | APPROVED_WITH_WARNING | APPROVED_WITH_OVERRIDE | REJECTED
     revision_count: int
     final_output: str
+    override_intent: str   # designer's declared reason for intentional violations
 
 # 2. Node: The Architect (The Creative Lead)
 def architect_node(state: AgentState):
@@ -48,22 +49,31 @@ def architect_node(state: AgentState):
 def critic_node(state: AgentState):
     print(f"\n[STORYBOARD] --- SENIOR CRITIC (Auditing Attempt #{state['revision_count']}) ---")
     
-    agent = get_critic(state['context'], state['client_brief'], state.get('platform', 'web'))
+    agent = get_critic(
+        state['context'], state['client_brief'],
+        state.get('platform', 'web'),
+        state.get('override_intent', '')
+    )
     response = agent.invoke({
         "input": state['architect_response']
     })
-    
-    # Check critic verdict — order matters: check WARNING before plain APPROVED
+
+    # Check critic verdict — order matters: most specific first
     content_upper = response.content.upper()
+    is_override = "APPROVED_WITH_OVERRIDE" in content_upper
     is_warning  = "APPROVED_WITH_WARNING" in content_upper
-    is_approved = is_warning or ("APPROVED" in content_upper and "REJECTED" not in content_upper)
+    is_approved = is_override or is_warning or ("APPROVED" in content_upper and "REJECTED" not in content_upper)
+
+    if is_override:   verdict = "APPROVED_WITH_OVERRIDE"
+    elif is_warning:  verdict = "APPROVED_WITH_WARNING"
+    elif is_approved: verdict = "APPROVED"
+    else:             verdict = "REJECTED"
 
     if is_approved:
-        verdict = "APPROVED_WITH_WARNING" if is_warning else "APPROVED"
         print(f"✅ [LOG] CRITIC: '{verdict}'")
         return {
             "final_output": state['architect_response'],
-            "critic_feedback": response.content.strip(),  # kept so UI can surface P1 warnings
+            "critic_feedback": response.content.strip(),
             "critic_verdict": verdict,
         }
     else:
