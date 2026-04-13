@@ -34,7 +34,8 @@ async def interrogate(
     user_input: str = Form(...),
     session_id: str = Form("Saad_01"),
     client_brief: str = Form("General Design Principles"),
-    platform: str = Form("web")
+    platform: str = Form("web"),
+    override_intent: str = Form(""),
 ):
     try:
         # 1. Short-circuit very short conversational inputs
@@ -75,6 +76,7 @@ async def interrogate(
             "platform": platform,
             "history": history.messages,
             "revision_count": 0,
+            "override_intent": override_intent,
         }
 
         result = vellum_app.invoke(initial_state)
@@ -85,7 +87,9 @@ async def interrogate(
         critic_feedback = result.get("critic_feedback") or ""
 
         # Derive status from the critic's actual verdict
-        if "APPROVED_WITH_WARNING" in critic_verdict:
+        if "APPROVED_WITH_OVERRIDE" in critic_verdict:
+            status = "APPROVED_WITH_OVERRIDE"
+        elif "APPROVED_WITH_WARNING" in critic_verdict:
             status = "APPROVED_WITH_WARNING"
         elif result.get("final_output"):
             status = "APPROVED"
