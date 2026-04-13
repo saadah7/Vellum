@@ -40,7 +40,7 @@ def get_architect(context, client_brief, platform="web"):
     ])
     return prompt | llm
 
-def get_critic(context, client_brief, platform="web"):
+def get_critic(context, client_brief, platform="web", override_intent: str = ""):
     """
     The Critic is a deterministic auditor that enforces all 8 audit gates with structured violation codes.
     Acts as the final enforcement layer for the 263 heuristics.
@@ -50,6 +50,23 @@ def get_critic(context, client_brief, platform="web"):
     # ESCAPING: Prevents the "Input to ChatPromptTemplate is missing variables" error
     safe_context = context.replace("{", "{{").replace("}", "}}")
     safe_brief = client_brief.replace("{", "{{").replace("}", "}}")
+    safe_override = override_intent.replace("{", "{{").replace("}", "}}")
+
+    override_block = ""
+    if override_intent.strip():
+        override_block = f"""
+OVERRIDE DECLARATION:
+The designer has declared the following intent for any P0 violations:
+"{safe_override}"
+
+Before issuing REJECTED on a P0 violation, evaluate this intent:
+- Does it serve a legitimate, documented design purpose?
+- Does it align with Dieter Rams Principle 6 (honest design) and the project's stated goals?
+- Is the violation a conscious creative decision, not an oversight?
+
+If YES to all three: issue APPROVED_WITH_OVERRIDE. Tag each overridden violation as [OVERRIDE: code] reason: <one line>.
+If NO or intent is absent/vague: issue REJECTED as normal.
+"""
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", f"""You are the VELLUM SENIOR CRITIC — a deterministic design governance auditor.
@@ -88,12 +105,16 @@ GATE 8 RAMS (P1 WARN only — never blocks): Check for non-functional decoration
   P1 codes: rams_non_functional_element, rams_dishonest_affordance, rams_fashionable_design_risk, rams_arbitrary_detail, rams_excess_element
 
 CLIENT FIDELITY: Also verify exact colors, names, and brand requirements from the Client Brief.
-
+{override_block}
 OUTPUT — use exactly one of these formats:
 
-If any P0 violation found:
+If any P0 violation found (and no valid override):
 REJECTED:
 [P0: <code>] <what failed and exact values>. Fix: <correction>
+
+If P0 violation overridden by valid designer intent:
+APPROVED_WITH_OVERRIDE:
+[OVERRIDE: <code>] reason: <one line>
 
 If only P1/P2 issues:
 APPROVED_WITH_WARNING:
