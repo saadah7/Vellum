@@ -140,6 +140,7 @@ html, body, [data-testid="stAppViewContainer"] {
 .badge-warning   { background: rgba(245,158,11,0.15); color: #F59E0B; border: 1px solid rgba(245,158,11,0.3); }
 .badge-rejected  { background: rgba(239,68,68,0.15);  color: #EF4444; border: 1px solid rgba(239,68,68,0.3); }
 .badge-idle      { background: rgba(100,116,139,0.15);color: #64748B; border: 1px solid rgba(100,116,139,0.3); }
+.badge-override  { background: rgba(13,148,136,0.15); color: #0D9488; border: 1px solid rgba(13,148,136,0.3); }
 
 /* ── Violation chips ── */
 .chip-p0 {
@@ -158,6 +159,17 @@ html, body, [data-testid="stAppViewContainer"] {
     background: rgba(245,158,11,0.12);
     border: 1px solid rgba(245,158,11,0.35);
     color: #FCD34D;
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-family: monospace;
+    margin: 2px 3px;
+}
+.chip-override {
+    display: inline-block;
+    background: rgba(13,148,136,0.12);
+    border: 1px solid rgba(13,148,136,0.35);
+    color: #5EEAD4;
     border-radius: 6px;
     padding: 3px 10px;
     font-size: 11px;
@@ -262,6 +274,12 @@ with st.sidebar:
             help="Reject raw hex values — enforce design tokens only.")
         rams_audit = st.toggle("RAMS Audit (Gate 8)", value=True,
             help="Dieter Rams principles audit. P1 warnings only.")
+        override_intent = st.text_area(
+            "Override Intent",
+            placeholder="e.g., Using pure black for a print-first layout where contrast is enforced by paper weight.",
+            height=80,
+            help="Declare why you are intentionally breaking a rule. The Critic will evaluate your reasoning.",
+        )
 
     # Session
     st.markdown('<div class="section-label">Session</div>', unsafe_allow_html=True)
@@ -300,6 +318,8 @@ def status_badge(status):
     if status is None:
         return '<span class="badge badge-idle">— IDLE</span>'
     s = str(status).upper()
+    if "APPROVED_WITH_OVERRIDE" in s:
+        return '<span class="badge badge-override">◈ APPROVED WITH OVERRIDE</span>'
     if "APPROVED_WITH" in s:
         return '<span class="badge badge-warning">⚠ APPROVED WITH WARNINGS</span>'
     if "APPROVED" in s:
@@ -336,10 +356,11 @@ st.markdown("<br>", unsafe_allow_html=True)
 
 # ── Violation chip parser ─────────────────────────────────────────────────────
 def parse_violations(text):
-    """Extract [P0: code] and [P1: code] tags from critic output."""
+    """Extract [P0: code], [P1: code], and [OVERRIDE: code] tags from critic output."""
     p0 = re.findall(r'\[P0:\s*([^\]]+)\]', text, re.IGNORECASE)
     p1 = re.findall(r'\[P1:\s*([^\]]+)\]', text, re.IGNORECASE)
-    return p0, p1
+    ov = re.findall(r'\[OVERRIDE:\s*([^\]]+)\]', text, re.IGNORECASE)
+    return p0, p1, ov
 
 
 # ── Chat history ──────────────────────────────────────────────────────────────
@@ -350,7 +371,8 @@ for message in st.session_state.messages:
             g = message["gov"]
             p0_chips = "".join(f'<span class="chip-p0">P0: {c}</span>' for c in g.get("p0", []))
             p1_chips = "".join(f'<span class="chip-p1">P1: {c}</span>' for c in g.get("p1", []))
-            chips_html = p0_chips + p1_chips
+            ov_chips = "".join(f'<span class="chip-override">◈ {c}</span>' for c in g.get("ov", []))
+            chips_html = p0_chips + p1_chips + ov_chips
             rev_str = f"{g.get('revisions', '?')} / {g.get('max_revisions', '?')} revisions"
             st.markdown(f"""
             <div class="gov-card">
@@ -373,6 +395,7 @@ if prompt := st.chat_input("Describe a layout or ask Vellum to audit a design de
         "client_brief": full_brief,
         "session_id": st.session_state.session_id,
         "platform": platform,
+        "override_intent": override_intent,
     }
 
     try:
@@ -391,8 +414,8 @@ if prompt := st.chat_input("Describe a layout or ask Vellum to audit a design de
             st.session_state.last_revisions     = revisions
             st.session_state.last_max_revisions = max_revisions
 
-            # Parse violation chips from critic_feedback (where [P0/P1: code] tags actually live)
-            p0_codes, p1_codes = parse_violations(critic_feedback)
+            # Parse violation chips from critic_feedback (where [P0/P1/OVERRIDE: code] tags actually live)
+            p0_codes, p1_codes, ov_codes = parse_violations(critic_feedback)
 
             gov_data = {
                 "status": status,
@@ -400,6 +423,7 @@ if prompt := st.chat_input("Describe a layout or ask Vellum to audit a design de
                 "max_revisions": max_revisions,
                 "p0": p0_codes,
                 "p1": p1_codes,
+                "ov": ov_codes,
             }
 
             # Render response
@@ -407,7 +431,8 @@ if prompt := st.chat_input("Describe a layout or ask Vellum to audit a design de
                 st.markdown(ai_response)
                 p0_chips   = "".join(f'<span class="chip-p0">P0: {c}</span>' for c in p0_codes)
                 p1_chips   = "".join(f'<span class="chip-p1">P1: {c}</span>' for c in p1_codes)
-                chips_html = p0_chips + p1_chips
+                ov_chips   = "".join(f'<span class="chip-override">◈ {c}</span>' for c in ov_codes)
+                chips_html = p0_chips + p1_chips + ov_chips
                 rev_str    = f"{revisions} / {max_revisions} revisions"
                 st.markdown(f"""
                 <div class="gov-card">
