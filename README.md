@@ -115,4 +115,4 @@ vellum/
 ## Team
 
 Saad Abdul Hakeem · Shaikh Mustafa · M A Naser Askari
-CS MAJOR PROJECT 8 sem
+CS MAJOR PROJECT
