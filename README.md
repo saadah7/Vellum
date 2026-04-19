@@ -115,4 +115,4 @@ vellum/
 ## Team
 
 Saad Abdul Hakeem · Shaikh Mustafa · M A Naser Askari
-CS MAJOR PROJECT built by saad
+CS MAJOR PROJECT
