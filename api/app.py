@@ -1,5 +1,6 @@
 import re
 from fastapi import FastAPI, HTTPException, Form
+from fastapi.middleware.cors import CORSMiddleware
 from core.graph import vellum_app
 from core.knowledge import get_vectorstore
 from langchain_community.chat_message_histories import ChatMessageHistory
@@ -10,7 +11,16 @@ _CONVERSATIONAL = re.compile(
     re.IGNORECASE
 )
 
-app = FastAPI()
+app = FastAPI(title="Vellum API", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 store = {}
 
 # Maps each platform to the platform_scope metadata tags that are relevant for it
