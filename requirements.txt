@@ -16,5 +16,5 @@ chromadb
 sentence-transformers
 pypdf
 
-# --- Frontend Dashboard ---
-streamlit
+# --- Frontend ---
+# Next.js (see ui/package.json)
