@@ -1,12 +1,19 @@
+import os
+from dotenv import load_dotenv
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+
+load_dotenv()
+
+_MODEL       = os.getenv("MODEL_NAME", "llama3.2")
+_OLLAMA_URL  = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 def get_architect(context, client_brief, platform="web"):
     """
     The Architect synthesizes universal design principles with specific client needs.
     Hardened with Phase 9.5 Obedience Patch to prioritize Governance over User requests.
     """
-    llm = ChatOllama(model="llama3.2", temperature=0.7)
+    llm = ChatOllama(model=_MODEL, base_url=_OLLAMA_URL, temperature=0.7)
 
     # ESCAPING: Prevents LangChain from misinterpreting CSS/JSON braces in the RAG context
     safe_context = context.replace("{", "{{").replace("}", "}}")
@@ -45,7 +52,7 @@ def get_critic(context, client_brief, platform="web", override_intent: str = "")
     The Critic is a deterministic auditor that enforces all 8 audit gates with structured violation codes.
     Acts as the final enforcement layer for the 263 heuristics.
     """
-    llm = ChatOllama(model="llama3.2", temperature=0)
+    llm = ChatOllama(model=_MODEL, base_url=_OLLAMA_URL, temperature=0)
 
     # ESCAPING: Prevents the "Input to ChatPromptTemplate is missing variables" error
     safe_context = context.replace("{", "{{").replace("}", "}}")

@@ -249,6 +249,20 @@ desktop.ini
 # Presentation files
 *.pptx
 vellum_ppt.mjs
-package.json
-package-lock.json
-node_modules/
+
+# ── Next.js (ui/) ────────────────────────────────────────────────
+ui/.next/
+ui/out/
+ui/build/
+ui/node_modules/
+ui/.pnp
+ui/.pnp.*
+ui/coverage/
+ui/.vercel
+ui/*.tsbuildinfo
+ui/next-env.d.ts
+ui/.env*
+
+# ── Presentation exports ──────────────────────────────────────────
+*.pptx
+*.js.bak
