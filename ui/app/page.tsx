@@ -236,17 +236,40 @@ function MetricPill({
 }
 
 // ── Main App ──────────────────────────────────────────────────────────────────
+const STORAGE_MESSAGES = "vellum_messages"
+const STORAGE_SESSION  = "vellum_session_id"
+
 export default function VellumApp() {
   const [messages, setMessages] = useState<Message[]>([])
   const [sessionId, setSessionId] = useState("")
-  useEffect(() => {
-    setSessionId(Math.random().toString(36).slice(2, 10))
-  }, [])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [lastStatus, setLastStatus] = useState<string | null>(null)
   const [lastRevisions, setLastRevisions] = useState<number | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  // Restore from localStorage on first mount (client-only)
+  useEffect(() => {
+    try {
+      const savedMessages = localStorage.getItem(STORAGE_MESSAGES)
+      if (savedMessages) setMessages(JSON.parse(savedMessages))
+    } catch { /* corrupted storage — start fresh */ }
+
+    const savedSession = localStorage.getItem(STORAGE_SESSION)
+    if (savedSession) {
+      setSessionId(savedSession)
+    } else {
+      const newId = Math.random().toString(36).slice(2, 10)
+      setSessionId(newId)
+      localStorage.setItem(STORAGE_SESSION, newId)
+    }
+  }, [])
+
+  // Persist messages on every change
+  useEffect(() => {
+    if (messages.length > 0)
+      localStorage.setItem(STORAGE_MESSAGES, JSON.stringify(messages))
+  }, [messages])
 
   // Settings
   const [clientName, setClientName] = useState("")
@@ -350,9 +373,13 @@ export default function VellumApp() {
   }, [input, isLoading, fullBrief, sessionId, platform, overrideIntent, maxRevisions])
 
   const handleReset = () => {
+    const newId = Math.random().toString(36).slice(2, 10)
     setMessages([])
     setLastStatus(null)
     setLastRevisions(null)
+    setSessionId(newId)
+    localStorage.removeItem(STORAGE_MESSAGES)
+    localStorage.setItem(STORAGE_SESSION, newId)
   }
 
   return (
