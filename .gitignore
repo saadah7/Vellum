@@ -250,11 +250,19 @@ desktop.ini
 *.pptx
 vellum_ppt.mjs
 
-# Next.js frontend build artifacts
+# ── Next.js (ui/) ────────────────────────────────────────────────
 ui/.next/
+ui/out/
+ui/build/
 ui/node_modules/
-ui/.env*.local
+ui/.pnp
+ui/.pnp.*
+ui/coverage/
+ui/.vercel
+ui/*.tsbuildinfo
+ui/next-env.d.ts
+ui/.env*
 
-# Presentation exports (keep out of repo)
+# ── Presentation exports ──────────────────────────────────────────
 *.pptx
 *.js.bak
