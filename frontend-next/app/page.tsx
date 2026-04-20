@@ -238,7 +238,10 @@ function MetricPill({
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function VellumApp() {
   const [messages, setMessages] = useState<Message[]>([])
-  const [sessionId] = useState(() => Math.random().toString(36).slice(2, 10))
+  const [sessionId, setSessionId] = useState("")
+  useEffect(() => {
+    setSessionId(Math.random().toString(36).slice(2, 10))
+  }, [])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [lastStatus, setLastStatus] = useState<string | null>(null)
