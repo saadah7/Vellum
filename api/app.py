@@ -1,16 +1,26 @@
+import asyncio
+import json
 import re
+import threading
+from dotenv import load_dotenv
+
 from fastapi import FastAPI, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+
 from core.graph import vellum_app
 from core.knowledge import get_vectorstore
 from langchain_community.chat_message_histories import ChatMessageHistory
 
-# Only bypass the loop for very short, clearly off-topic inputs (≤ 3 words)
+load_dotenv()
+
+# ── Conversational bypass ─────────────────────────────────────────────────────
 _CONVERSATIONAL = re.compile(
     r"^\s*(hi|hello|hey|sup|yo|thanks|thank you|ok|okay|cool|great|nice|bye|goodbye)\s*[!?.]*\s*$",
-    re.IGNORECASE
+    re.IGNORECASE,
 )
 
+# ── App setup ─────────────────────────────────────────────────────────────────
 app = FastAPI(title="Vellum API", version="1.0.0")
 
 app.add_middleware(
@@ -21,9 +31,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-store = {}
+store: dict = {}
 
-# Maps each platform to the platform_scope metadata tags that are relevant for it
+# Platform → allowed platform_scope metadata tags
 PLATFORM_SCOPE_MAP = {
     "android":        ["all", "android_web_cross"],
     "ios":            ["all"],
@@ -33,98 +43,153 @@ PLATFORM_SCOPE_MAP = {
     "watch":          ["all"],
 }
 
-def get_session_history(session_id: str):
+
+def get_session_history(session_id: str) -> ChatMessageHistory:
     if session_id not in store:
         store[session_id] = ChatMessageHistory()
     return store[session_id]
 
 
+def _sse(event: dict) -> str:
+    """Format a dict as a Server-Sent Event line."""
+    return f"data: {json.dumps(event)}\n\n"
+
+
+def _derive_status(verdict: str, has_final_output: bool) -> str:
+    if "APPROVED_WITH_OVERRIDE" in verdict:
+        return "APPROVED_WITH_OVERRIDE"
+    if "APPROVED_WITH_WARNING" in verdict:
+        return "APPROVED_WITH_WARNING"
+    if has_final_output:
+        return "APPROVED"
+    return "MAX_REVISIONS_REACHED"
+
+
+# ── /interrogate (SSE streaming) ──────────────────────────────────────────────
 @app.post("/interrogate")
 async def interrogate(
-    user_input: str = Form(...),
-    session_id: str = Form("Saad_01"),
-    client_brief: str = Form("General Design Principles"),
-    platform: str = Form("web"),
+    user_input:      str = Form(...),
+    session_id:      str = Form("default"),
+    client_brief:    str = Form("General Design Principles"),
+    platform:        str = Form("web"),
     override_intent: str = Form(""),
 ):
-    try:
-        # 1. Short-circuit very short conversational inputs
-        if _CONVERSATIONAL.match(user_input.strip()):
-            return {
-                "vellum_response": "Hello. I'm Vellum — a design governance engine. Describe a UI layout, component, or design decision and I'll audit it against WCAG, Material 3, and your client brief.",
+    # ── Conversational short-circuit ─────────────────────────────────────────
+    if _CONVERSATIONAL.match(user_input.strip()):
+        async def _greet():
+            yield _sse({
+                "type": "result",
+                "vellum_response": (
+                    "Hello. I'm Vellum — a design governance engine. "
+                    "Describe a UI layout, component, or design decision and I'll audit it."
+                ),
                 "revisions": 0,
                 "status": "APPROVED",
                 "critic_feedback": "",
-            }
+            })
+        return StreamingResponse(_greet(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
-        # 2. Fetch RAG context with platform filter — fall back to unfiltered if empty
+    # ── RAG context ──────────────────────────────────────────────────────────
+    try:
+        vectorstore   = get_vectorstore()
+        allowed       = PLATFORM_SCOPE_MAP.get(platform, ["all"])
+        relevant_docs = vectorstore.similarity_search(
+            user_input, k=3,
+            filter={"platform_scope": {"$in": allowed}},
+        )
+        if not relevant_docs:
+            print("[WARN] Platform filter returned 0 docs — falling back to unfiltered.")
+            relevant_docs = vectorstore.similarity_search(user_input, k=3)
+    except Exception as rag_err:
+        print(f"[WARN] RAG error ({rag_err}) — proceeding with empty context.")
+        relevant_docs = []
+
+    context = "\n".join(d.page_content for d in relevant_docs)
+    history = get_session_history(session_id)
+
+    initial_state = {
+        "input":           user_input,
+        "context":         context,
+        "client_brief":    client_brief,
+        "platform":        platform,
+        "history":         history.messages,
+        "revision_count":  0,
+        "override_intent": override_intent,
+    }
+
+    # ── SSE generator ────────────────────────────────────────────────────────
+    loop  = asyncio.get_event_loop()
+    queue: asyncio.Queue = asyncio.Queue()
+
+    def _run_graph() -> None:
+        """Stream LangGraph node outputs into the async queue."""
         try:
-            vectorstore = get_vectorstore()
-            allowed_scopes = PLATFORM_SCOPE_MAP.get(platform, ["all"])
-            relevant_docs = vectorstore.similarity_search(
-                user_input, k=3,
-                filter={"platform_scope": {"$in": allowed_scopes}}
-            )
-            # Fallback: if filtered query returns nothing (old DB / metadata missing), run unfiltered
-            if not relevant_docs:
-                print("[WARN] Platform-filtered RAG returned 0 results — falling back to unfiltered search.")
-                relevant_docs = vectorstore.similarity_search(user_input, k=3)
-        except Exception as rag_err:
-            print(f"[WARN] RAG error ({rag_err}) — continuing with empty context.")
-            relevant_docs = []
+            for chunk in vellum_app.stream(initial_state):
+                loop.call_soon_threadsafe(queue.put_nowait, ("chunk", chunk))
+        except Exception as exc:
+            loop.call_soon_threadsafe(queue.put_nowait, ("error", str(exc)))
+        finally:
+            loop.call_soon_threadsafe(queue.put_nowait, ("done", None))
 
-        context = "\n".join([doc.page_content for doc in relevant_docs])
+    async def generate():
+        yield _sse({"type": "start"})
 
-        # 3. Get chat history
-        history = get_session_history(session_id)
+        t = threading.Thread(target=_run_graph, daemon=True)
+        t.start()
 
-        # 4. Invoke the debate loop
-        initial_state = {
-            "input": user_input,
-            "context": context,
-            "client_brief": client_brief,
-            "platform": platform,
-            "history": history.messages,
-            "revision_count": 0,
-            "override_intent": override_intent,
-        }
+        final_state: dict = {}
 
-        result = vellum_app.invoke(initial_state)
+        while True:
+            kind, payload = await queue.get()
 
-        # 5. Extract outputs
-        final_answer   = result.get("final_output") or result.get("architect_response", "")
-        critic_verdict = result.get("critic_verdict", "")
-        critic_feedback = result.get("critic_feedback") or ""
+            if kind == "done":
+                break
 
-        # Derive status from the critic's actual verdict
-        if "APPROVED_WITH_OVERRIDE" in critic_verdict:
-            status = "APPROVED_WITH_OVERRIDE"
-        elif "APPROVED_WITH_WARNING" in critic_verdict:
-            status = "APPROVED_WITH_WARNING"
-        elif result.get("final_output"):
-            status = "APPROVED"
-        else:
-            status = "MAX_REVISIONS_REACHED"
+            if kind == "error":
+                yield _sse({"type": "error", "message": payload})
+                return
 
-        # 6. Persist to session history
+            # kind == "chunk": merge non-None fields into final_state
+            node = next(iter(payload))
+            data = payload[node]
+            final_state.update({k: v for k, v in data.items() if v is not None})
+
+            if node == "architect":
+                yield _sse({
+                    "type":     "progress",
+                    "phase":    "architect",
+                    "revision": data.get("revision_count", 1),
+                    "message":  f"Architect drafting (revision {data.get('revision_count', 1)})…",
+                })
+            elif node == "critic":
+                verdict = data.get("critic_verdict", "")
+                yield _sse({
+                    "type":    "progress",
+                    "phase":   "critic",
+                    "verdict": verdict,
+                    "message": f"Critic auditing… verdict: {verdict or 'pending'}",
+                })
+
+        # ── Final result ─────────────────────────────────────────────────────
+        final_answer    = final_state.get("final_output") or final_state.get("architect_response", "")
+        critic_verdict  = final_state.get("critic_verdict", "")
+        critic_feedback = final_state.get("critic_feedback") or ""
+        status          = _derive_status(critic_verdict, bool(final_state.get("final_output")))
+
         history.add_user_message(user_input)
         history.add_ai_message(final_answer)
 
-        return {
+        yield _sse({
+            "type":            "result",
             "vellum_response": final_answer,
-            "revisions": result.get("revision_count", 1),
-            "status": status,
-            "critic_feedback": critic_feedback,  # passed to frontend for violation chip parsing
-        }
+            "revisions":       final_state.get("revision_count", 1),
+            "status":          status,
+            "critic_feedback": critic_feedback,
+        })
 
-    except Exception as e:
-        err = str(e)
-        print(f"[CRASH] {err}")
-
-        # Friendly message for common Ollama failures
-        if "connection" in err.lower() or "refused" in err.lower() or "ollama" in err.lower():
-            raise HTTPException(
-                status_code=503,
-                detail="Ollama is not reachable. Make sure it is running and llama3.2 is loaded."
-            )
-        raise HTTPException(status_code=500, detail=f"Vellum Engine Error: {err}")
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

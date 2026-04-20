@@ -80,7 +80,7 @@ export default function VellumApp() {
     setInput("")
     setMessages((prev) => [...prev, { role: "user", content: userMessage }])
     setIsLoading(true)
-    setLoadingMsg("Architect & Critic are debating…")
+    setLoadingMsg("Fetching design rules…")
 
     try {
       const fd = new FormData()
@@ -92,23 +92,49 @@ export default function VellumApp() {
 
       const res = await fetch("http://localhost:8000/interrogate", { method: "POST", body: fd })
 
-      if (res.ok) {
-        const data = await res.json()
-        const { p0, p1, ov } = parseViolations(data.critic_feedback || "")
-        setLastStatus(data.status)
-        setLastRevs(data.revisions)
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: data.vellum_response || "No response.",
-            gov: { status: data.status, revisions: data.revisions, maxRevisions: settings.maxRevisions, p0, p1, ov },
-          },
-        ])
-      } else if (res.status === 503) {
+      if (!res.body) throw new Error("No response body")
+      if (res.status === 503) {
         setMessages((prev) => [...prev, { role: "assistant", content: "⚠️ Ollama is not reachable. Make sure it's running and `llama3.2` is loaded." }])
-      } else {
-        setMessages((prev) => [...prev, { role: "assistant", content: `Backend error ${res.status}.` }])
+        return
+      }
+
+      // ── Consume SSE stream ──────────────────────────────────────────────
+      const reader  = res.body.getReader()
+      const decoder = new TextDecoder()
+      let   buffer  = ""
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split("\n")
+        buffer = lines.pop() ?? ""
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue
+          try {
+            const event = JSON.parse(line.slice(6))
+
+            if (event.type === "progress") {
+              setLoadingMsg(event.message ?? "Debating…")
+            } else if (event.type === "result") {
+              const { p0, p1, ov } = parseViolations(event.critic_feedback || "")
+              setLastStatus(event.status)
+              setLastRevs(event.revisions)
+              setMessages((prev) => [
+                ...prev,
+                {
+                  role: "assistant",
+                  content: event.vellum_response || "No response.",
+                  gov: { status: event.status, revisions: event.revisions, maxRevisions: settings.maxRevisions, p0, p1, ov },
+                },
+              ])
+            } else if (event.type === "error") {
+              setMessages((prev) => [...prev, { role: "assistant", content: `⚠️ Engine error: ${event.message}` }])
+            }
+          } catch { /* malformed SSE line — skip */ }
+        }
       }
     } catch {
       setMessages((prev) => [...prev, { role: "assistant", content: "⚠️ Cannot reach the backend. Run: `uvicorn api.app:app --reload`" }])
