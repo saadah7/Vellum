@@ -249,6 +249,8 @@ desktop.ini
 # Presentation files
 *.pptx
 vellum_ppt.mjs
-package.json
-package-lock.json
-node_modules/
+
+# Next.js frontend build artifacts
+frontend-next/.next/
+frontend-next/node_modules/
+frontend-next/.env*.local
