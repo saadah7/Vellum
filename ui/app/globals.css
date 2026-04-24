@@ -41,47 +41,254 @@
   --radius-2xl: calc(var(--radius) * 1.8);
 }
 
-/* ── Webplow palette ── */
+/* ── Vellum dark palette (composio-inspired) ───────────────────────── */
 :root {
-  --background:           #fcfcfc;
-  --foreground:           #26251e;
-  --card:                 #ffffff;
-  --card-foreground:      #26251e;
-  --popover:              #ffffff;
-  --popover-foreground:   #26251e;
-  --primary:              #6c63ff;
-  --primary-foreground:   #ffffff;
-  --secondary:            #f0efe9;
-  --secondary-foreground: #26251e;
-  --muted:                #f5f5f0;
-  --muted-foreground:     #8a8880;
-  --accent:               #f0efe9;
-  --accent-foreground:    #26251e;
-  --destructive:          #ef4444;
-  --border:               #e8e7e2;
-  --input:                #e8e7e2;
-  --ring:                 #6c63ff;
-  --radius:               0.9375rem; /* 15px */
+  --background:           #08080c;   /* near-black */
+  --foreground:           #ececf1;   /* off-white */
+  --card:                 #0f0f17;   /* slightly elevated */
+  --card-foreground:      #ececf1;
+  --popover:              #12121c;
+  --popover-foreground:   #ececf1;
+  --primary:              #8b7fff;
+  --primary-foreground:   #0a0a10;
+  --secondary:            #16161f;
+  --secondary-foreground: #d4d4dc;
+  --muted:                #16161f;
+  --muted-foreground:     #7a7a85;
+  --accent:               #1a1a24;
+  --accent-foreground:    #ececf1;
+  --destructive:          #f87171;
+  --border:               #1e1e2a;
+  --input:                #1e1e2a;
+  --ring:                 #8b7fff;
+  --radius:               0.875rem;
 
-  /* sidebar */
-  --sidebar:                    #f8f8f4;
-  --sidebar-foreground:         #26251e;
-  --sidebar-primary:            #6c63ff;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent:             #f0efe9;
-  --sidebar-accent-foreground:  #26251e;
-  --sidebar-border:             #e8e7e2;
-  --sidebar-ring:               #6c63ff;
+  /* Brand gradient — punched up for dark */
+  --brand-from: #7c7aff;
+  --brand-via:  #a78bfa;
+  --brand-to:   #c3a6ff;
+  --brand-soft: rgba(139, 127, 255, 0.12);
+  --brand-line: rgba(139, 127, 255, 0.22);
+
+  /* Shadows — subtle on dark, mostly glow */
+  --shadow-raised:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 8px 24px rgba(0, 0, 0, 0.2);
+  --shadow-floating:
+    0 2px 4px rgba(0, 0, 0, 0.5),
+    0 16px 40px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(139, 127, 255, 0.06);
+  --shadow-brand:
+    0 0 0 1px rgba(139, 127, 255, 0.3),
+    0 6px 20px rgba(139, 127, 255, 0.35);
+
+  /* sidebar (legacy — kept for shadcn parity) */
+  --sidebar:                    #0b0b12;
+  --sidebar-foreground:         #ececf1;
+  --sidebar-primary:            #8b7fff;
+  --sidebar-primary-foreground: #ececf1;
+  --sidebar-accent:             #16161f;
+  --sidebar-accent-foreground:  #ececf1;
+  --sidebar-border:             #1e1e2a;
+  --sidebar-ring:               #8b7fff;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+
+  /* Ambient background comes from <LiveBackground /> mounted in layout.tsx. */
   body {
     @apply bg-background text-foreground;
+    background-color: var(--background);
   }
   html {
     @apply font-sans;
+  }
+
+  /* Selection */
+  ::selection {
+    background: rgba(139, 127, 255, 0.28);
+    color: #fff;
+  }
+
+  /* Scrollbar (subtle) */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.07);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+}
+
+/* ── Vellum custom utilities (Tailwind v4 @utility syntax) ─────────── */
+@utility vellum-brand {
+  background: linear-gradient(110deg, var(--brand-from) 0%, var(--brand-via) 45%, var(--brand-to) 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: vellum-shimmer 8s ease-in-out infinite;
+}
+
+@utility vellum-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-raised);
+  transition: box-shadow 200ms ease, transform 200ms ease, border-color 200ms ease;
+}
+
+@utility vellum-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border-radius: 9999px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--foreground);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  transition: all 150ms ease;
+}
+
+@utility vellum-pill-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 9999px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--brand-to);
+  background: var(--brand-soft);
+  border: 1px solid var(--brand-line);
+}
+
+@utility vellum-glow {
+  box-shadow: var(--shadow-brand);
+}
+
+@utility vellum-surface {
+  background:
+    radial-gradient(400px 200px at 50% -10%, rgba(139, 127, 255, 0.06), transparent 60%),
+    var(--card);
+}
+
+/* Hairline separator with fading ends — composio-style */
+@utility vellum-rule {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--border) 30%, var(--border) 70%, transparent 100%);
+}
+
+/* Hover refinements (kept outside @utility because hover is a selector modifier) */
+.vellum-card:hover {
+  border-color: rgba(139, 127, 255, 0.25);
+  box-shadow: var(--shadow-floating);
+}
+.vellum-pill:hover {
+  border-color: rgba(139, 127, 255, 0.3);
+  background: rgba(139, 127, 255, 0.06);
+  color: #fff;
+}
+
+/* ── Live background (orbs + drifting grid) ────────────────────────── */
+.vellum-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.55;
+  will-change: transform, opacity;
+  pointer-events: none;
+  /* paint on its own layer so the blur is GPU-cached */
+  transform: translate3d(0, 0, 0);
+}
+.vellum-orb-1 {
+  top: -10%;
+  left: -10%;
+  width: 520px;
+  height: 520px;
+  background: radial-gradient(circle at 40% 40%, #7c7aff 0%, rgba(124, 122, 255, 0.0) 65%);
+  animation: vellum-drift-1 22s ease-in-out infinite;
+}
+.vellum-orb-2 {
+  top: -20%;
+  right: -10%;
+  width: 620px;
+  height: 620px;
+  background: radial-gradient(circle at 50% 50%, #a78bfa 0%, rgba(167, 139, 250, 0.0) 65%);
+  animation: vellum-drift-2 28s ease-in-out infinite;
+}
+.vellum-orb-3 {
+  bottom: -20%;
+  left: 30%;
+  width: 720px;
+  height: 720px;
+  background: radial-gradient(circle at 50% 50%, #5846ff 0%, rgba(88, 70, 255, 0.0) 60%);
+  animation: vellum-drift-3 34s ease-in-out infinite;
+  opacity: 0.35;
+}
+.vellum-grid {
+  position: absolute;
+  inset: -10% 0 0 0;
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.045) 1px, transparent 0);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.2) 70%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.2) 70%, transparent 100%);
+  animation: vellum-grid-pan 60s linear infinite;
+  will-change: background-position;
+}
+
+/* ── Keyframes ─────────────────────────────────────────────────────── */
+@keyframes vellum-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+
+@keyframes vellum-fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Orbs drift in huge loose lissajous loops — intentionally slow & unsynced */
+@keyframes vellum-drift-1 {
+  0%   { transform: translate3d(0, 0, 0)           scale(1);    opacity: 0.55; }
+  33%  { transform: translate3d(120px, 80px, 0)    scale(1.1);  opacity: 0.7;  }
+  66%  { transform: translate3d(-60px, 140px, 0)   scale(0.95); opacity: 0.45; }
+  100% { transform: translate3d(0, 0, 0)           scale(1);    opacity: 0.55; }
+}
+
+@keyframes vellum-drift-2 {
+  0%   { transform: translate3d(0, 0, 0)           scale(1);    opacity: 0.5;  }
+  40%  { transform: translate3d(-140px, 100px, 0)  scale(1.15); opacity: 0.65; }
+  75%  { transform: translate3d(80px, -80px, 0)    scale(0.9);  opacity: 0.45; }
+  100% { transform: translate3d(0, 0, 0)           scale(1);    opacity: 0.5;  }
+}
+
+@keyframes vellum-drift-3 {
+  0%   { transform: translate3d(0, 0, 0)           scale(1);    opacity: 0.35; }
+  50%  { transform: translate3d(-100px, -140px, 0) scale(1.2);  opacity: 0.5;  }
+  100% { transform: translate3d(0, 0, 0)           scale(1);    opacity: 0.35; }
+}
+
+@keyframes vellum-grid-pan {
+  from { background-position: 0 0; }
+  to   { background-position: 28px 28px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vellum-brand,
+  .vellum-orb-1,
+  .vellum-orb-2,
+  .vellum-orb-3,
+  .vellum-grid {
+    animation: none;
   }
 }

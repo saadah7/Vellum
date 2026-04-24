@@ -1,7 +1,10 @@
 import asyncio
 import json
+import os
 import re
 import threading
+import urllib.error
+import urllib.request
 from dotenv import load_dotenv
 
 from fastapi import FastAPI, HTTPException, Form
@@ -65,6 +68,36 @@ def _derive_status(verdict: str, has_final_output: bool) -> str:
     return "MAX_REVISIONS_REACHED"
 
 
+# ── /health ───────────────────────────────────────────────────────────────────
+@app.get("/health")
+def health():
+    """Pre-flight for the UI: surface a red dot before the user sees a broken reply."""
+    ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    ollama_ok = False
+    try:
+        req = urllib.request.Request(f"{ollama_url.rstrip('/')}/api/tags")
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            ollama_ok = resp.status == 200
+    except (urllib.error.URLError, TimeoutError, OSError):
+        ollama_ok = False
+
+    rag_ok = False
+    rag_docs = 0
+    try:
+        vectorstore = get_vectorstore()
+        rag_docs = vectorstore._collection.count()
+        rag_ok = rag_docs > 0
+    except Exception:
+        rag_ok = False
+
+    return {
+        "ollama": ollama_ok,
+        "rag": rag_ok,
+        "rag_docs": rag_docs,
+        "ready": ollama_ok and rag_ok,
+    }
+
+
 # ── /interrogate (SSE streaming) ──────────────────────────────────────────────
 @app.post("/interrogate")
 async def interrogate(
@@ -73,6 +106,7 @@ async def interrogate(
     client_brief:    str = Form("General Design Principles"),
     platform:        str = Form("web"),
     override_intent: str = Form(""),
+    max_revisions:   int = Form(3),
 ):
     # ── Conversational short-circuit ─────────────────────────────────────────
     if _CONVERSATIONAL.match(user_input.strip()):
@@ -80,8 +114,9 @@ async def interrogate(
             yield _sse({
                 "type": "result",
                 "vellum_response": (
-                    "Hello. I'm Vellum — a design governance engine. "
-                    "Describe a UI layout, component, or design decision and I'll audit it."
+                    "Hi — I'm Vellum. Describe a design decision and two AI designers "
+                    "will tackle it: one writes the answer, the other grades it against "
+                    "263 real design rules. You'll see a report card with every reply."
                 ),
                 "revisions": 0,
                 "status": "APPROVED",
@@ -91,6 +126,7 @@ async def interrogate(
                                  headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
     # ── RAG context ──────────────────────────────────────────────────────────
+    rag_warning: str | None = None
     try:
         vectorstore   = get_vectorstore()
         allowed       = PLATFORM_SCOPE_MAP.get(platform, ["all"])
@@ -101,9 +137,15 @@ async def interrogate(
         if not relevant_docs:
             print("[WARN] Platform filter returned 0 docs — falling back to unfiltered.")
             relevant_docs = vectorstore.similarity_search(user_input, k=3)
+        if not relevant_docs:
+            rag_warning = (
+                "Design rule library is empty. Run: "
+                "`python -c \"from core.knowledge import ingest_data; ingest_data()\"`"
+            )
     except Exception as rag_err:
         print(f"[WARN] RAG error ({rag_err}) — proceeding with empty context.")
         relevant_docs = []
+        rag_warning = f"Cannot read design rule library ({rag_err})."
 
     context = "\n".join(d.page_content for d in relevant_docs)
     history = get_session_history(session_id)
@@ -116,6 +158,7 @@ async def interrogate(
         "history":         history.messages,
         "revision_count":  0,
         "override_intent": override_intent,
+        "max_revisions":   max_revisions,
     }
 
     # ── SSE generator ────────────────────────────────────────────────────────
@@ -134,6 +177,9 @@ async def interrogate(
 
     async def generate():
         yield _sse({"type": "start"})
+
+        if rag_warning:
+            yield _sse({"type": "warning", "message": rag_warning})
 
         t = threading.Thread(target=_run_graph, daemon=True)
         t.start()

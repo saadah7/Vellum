@@ -4,7 +4,7 @@ from langgraph.graph import StateGraph, END
 from core.agents import get_architect, get_critic
 
 # 1. Define the Shared State (Enhanced for Universal Governance)
-class AgentState(TypedDict):
+class AgentState(TypedDict, total=False):
     input: str
     context: str           # Universal Laws from ChromaDB
     client_brief: str      # Specific Client Requirements from UI
@@ -16,6 +16,7 @@ class AgentState(TypedDict):
     revision_count: int
     final_output: str
     override_intent: str   # designer's declared reason for intentional violations
+    max_revisions: int     # upper bound on architect↔critic loop (default 3)
 
 # 2. Node: The Architect (The Creative Lead)
 def architect_node(state: AgentState):
@@ -88,7 +89,7 @@ def should_continue(state: AgentState):
         print("\n[STORYBOARD] --- DEBATE CONCLUDED: WORK APPROVED ---")
         return "end"
     
-    if state.get("revision_count", 0) >= 3:
+    if state.get("revision_count", 0) >= state.get("max_revisions", 3):
         print("\n[STORYBOARD] --- DEBATE CONCLUDED: MAX REVISIONS REACHED (FORCE STOP) ---")
         return "end"
     

@@ -2,37 +2,38 @@
 
 import { useState, useRef, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
-import { Loader2, Send } from "lucide-react"
+import { Loader2, Send, AlertCircle } from "lucide-react"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { Sidebar } from "@/components/vellum/sidebar"
-import { MetricBar } from "@/components/vellum/metric-bar"
-import { GovernanceReport } from "@/components/vellum/governance-report"
+import { TopBar } from "@/components/vellum/top-bar"
+import { EmptyState } from "@/components/vellum/empty-state"
+import { DebateStatus, type Phase } from "@/components/vellum/debate-status"
+import { QualityReport } from "@/components/vellum/quality-report"
+import { Markdown } from "@/components/vellum/markdown"
 import { cn } from "@/lib/utils"
 import {
   type Message,
-  type SidebarSettings,
+  type Settings,
   DEFAULT_SETTINGS,
-  parseViolations,
+  parseReport,
   buildBrief,
 } from "@/lib/types"
 
-// ── Storage keys ──────────────────────────────────────────────────────────────
 const STORAGE_MESSAGES = "vellum_messages"
 const STORAGE_SESSION  = "vellum_session_id"
 
-// ── App ───────────────────────────────────────────────────────────────────────
 export default function VellumApp() {
   const [messages, setMessages]       = useState<Message[]>([])
   const [sessionId, setSessionId]     = useState("")
   const [input, setInput]             = useState("")
   const [isLoading, setIsLoading]     = useState(false)
-  const [loadingMsg, setLoadingMsg]   = useState("Architect & Critic are debating…")
-  const [lastStatus, setLastStatus]   = useState<string | null>(null)
-  const [lastRevisions, setLastRevs]  = useState<number | null>(null)
-  const [settings, setSettings]       = useState<SidebarSettings>(DEFAULT_SETTINGS)
+  const [phase, setPhase]             = useState<Phase>("idle")
+  const [phaseMsg, setPhaseMsg]       = useState("Warming up")
+  const [currentRound, setCurrentRound] = useState(1)
+  const [warning, setWarning]         = useState<string | null>(null)
+  const [settings, setSettings]       = useState<Settings>(DEFAULT_SETTINGS)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // Restore from localStorage on mount
+  // Restore from localStorage
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_MESSAGES)
@@ -58,47 +59,59 @@ export default function VellumApp() {
   useEffect(() => {
     if (scrollRef.current)
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-  }, [messages, isLoading])
+  }, [messages, isLoading, phase])
 
-  const patchSettings = useCallback((patch: Partial<SidebarSettings>) => {
+  const patchSettings = useCallback((patch: Partial<Settings>) => {
     setSettings((prev) => ({ ...prev, ...patch }))
   }, [])
 
   const handleReset = useCallback(() => {
     const id = Math.random().toString(36).slice(2, 10)
     setMessages([])
-    setLastStatus(null)
-    setLastRevs(null)
+    setWarning(null)
+    setPhase("idle")
     setSessionId(id)
     localStorage.removeItem(STORAGE_MESSAGES)
     localStorage.setItem(STORAGE_SESSION, id)
   }, [])
 
-  const handleSubmit = useCallback(async () => {
-    if (!input.trim() || isLoading) return
-    const userMessage = input.trim()
+  const submit = useCallback(async (rawText: string) => {
+    const text = rawText.trim()
+    if (!text || isLoading) return
+
     setInput("")
-    setMessages((prev) => [...prev, { role: "user", content: userMessage }])
+    setWarning(null)
+    setMessages((prev) => [...prev, { role: "user", content: text }])
     setIsLoading(true)
-    setLoadingMsg("Fetching design rules…")
+    setPhase("writer")
+    setCurrentRound(1)
+    setPhaseMsg("Fetching relevant design rules…")
 
     try {
       const fd = new FormData()
-      fd.append("user_input", userMessage)
+      fd.append("user_input", text)
       fd.append("client_brief", buildBrief(settings))
       fd.append("session_id", sessionId)
       fd.append("platform", settings.platform)
-      fd.append("override_intent", settings.overrideIntent)
+      fd.append("override_intent", settings.ruleBreakReason)
+      fd.append("max_revisions", String(settings.maxRounds))
 
       const res = await fetch("http://localhost:8000/interrogate", { method: "POST", body: fd })
 
-      if (!res.body) throw new Error("No response body")
-      if (res.status === 503) {
-        setMessages((prev) => [...prev, { role: "assistant", content: "⚠️ Ollama is not reachable. Make sure it's running and `llama3.2` is loaded." }])
+      if (res.status === 503 || !res.ok) {
+        setMessages((prev) => [...prev, {
+          role: "assistant",
+          content:
+            "I can't reach Ollama right now. Open a terminal and run:\n\n" +
+            "    ollama serve\n\n" +
+            "Then make sure the model is loaded:\n\n" +
+            "    ollama pull llama3.2",
+        }])
         return
       }
 
-      // ── Consume SSE stream ──────────────────────────────────────────────
+      if (!res.body) throw new Error("No response body")
+
       const reader  = res.body.getReader()
       const decoder = new TextDecoder()
       let   buffer  = ""
@@ -116,134 +129,162 @@ export default function VellumApp() {
           try {
             const event = JSON.parse(line.slice(6))
 
-            if (event.type === "progress") {
-              setLoadingMsg(event.message ?? "Debating…")
+            if (event.type === "warning") {
+              setWarning(event.message ?? null)
+            } else if (event.type === "progress") {
+              if (event.phase === "architect") {
+                setPhase("writer")
+                setCurrentRound(event.revision ?? 1)
+                setPhaseMsg(`Drafting an answer (round ${event.revision ?? 1})`)
+              } else if (event.phase === "critic") {
+                setPhase("reviewer")
+                setPhaseMsg("Grading against design rules")
+              } else {
+                setPhaseMsg(event.message ?? "Working")
+              }
             } else if (event.type === "result") {
-              const { p0, p1, ov } = parseViolations(event.critic_feedback || "")
-              setLastStatus(event.status)
-              setLastRevs(event.revisions)
+              const parsed = parseReport(event.critic_feedback || "")
               setMessages((prev) => [
                 ...prev,
                 {
                   role: "assistant",
                   content: event.vellum_response || "No response.",
-                  gov: { status: event.status, revisions: event.revisions, maxRevisions: settings.maxRevisions, p0, p1, ov },
+                  report: {
+                    status:     event.status,
+                    rounds:     event.revisions,
+                    maxRounds:  settings.maxRounds,
+                    critical:   parsed.critical,
+                    warnings:   parsed.warnings,
+                    exceptions: parsed.exceptions,
+                  },
                 },
               ])
             } else if (event.type === "error") {
-              setMessages((prev) => [...prev, { role: "assistant", content: `⚠️ Engine error: ${event.message}` }])
+              setMessages((prev) => [...prev, {
+                role: "assistant",
+                content: `Something went wrong: ${event.message}`,
+              }])
             }
-          } catch { /* malformed SSE line — skip */ }
+          } catch (parseErr) {
+            console.error("Bad SSE line:", line, parseErr)
+          }
         }
       }
-    } catch {
-      setMessages((prev) => [...prev, { role: "assistant", content: "⚠️ Cannot reach the backend. Run: `uvicorn api.app:app --reload`" }])
+    } catch (err) {
+      console.error("Request failed:", err)
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        content:
+          "I can't reach the backend. Open a terminal and run:\n\n" +
+          "    uvicorn api.app:app --reload",
+      }])
     } finally {
       setIsLoading(false)
+      setPhase("idle")
     }
-  }, [input, isLoading, settings, sessionId])
+  }, [isLoading, settings, sessionId])
 
   return (
     <TooltipProvider>
-      <div className="flex h-screen bg-background font-sans overflow-hidden">
+      <div className="flex flex-col h-screen bg-background font-sans overflow-hidden">
 
-        <Sidebar
-          settings={settings}
-          sessionId={sessionId}
-          onChange={patchSettings}
-          onReset={handleReset}
-        />
+        <TopBar settings={settings} onChange={patchSettings} onReset={handleReset} />
+
+        {warning && (
+          <div className="flex items-start gap-2 px-6 py-2 bg-amber-500/10 border-b border-amber-500/20 text-xs text-amber-200">
+            <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+            <span className="font-mono">{warning}</span>
+          </div>
+        )}
 
         <main className="flex-1 flex flex-col overflow-hidden">
-          <MetricBar
-            revisions={lastRevisions}
-            maxRevisions={settings.maxRevisions}
-            status={lastStatus}
-            platform={settings.platform}
-          />
-
           {/* Chat */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
-            {messages.length === 0 && !isLoading && (
-              <div className="flex flex-col items-center justify-center h-full text-center select-none">
-                <p
-                  className="text-5xl font-extrabold tracking-tight mb-3 leading-none"
-                  style={{
-                    background: "linear-gradient(135deg, #6c63ff 0%, #a78bfa 100%)",
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                    backgroundClip: "text",
-                  }}
-                >
-                  VELLUM
-                </p>
-                <p className="text-sm text-muted-foreground max-w-[360px] leading-relaxed">
-                  Describe a UI layout, component, or design decision.
-                  Vellum audits it against WCAG 2.1, Material 3, and your client brief.
-                </p>
-              </div>
-            )}
+          <div ref={scrollRef} className="flex-1 overflow-y-auto">
+            <div className="max-w-3xl mx-auto px-5 py-6 space-y-5">
 
-            {messages.map((msg, i) => (
-              <div key={i} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
-                {msg.role === "user" ? (
-                  <div
-                    className="max-w-[72%] rounded-[15px] rounded-br-[4px] px-4 py-3 text-sm text-white"
-                    style={{ background: "linear-gradient(135deg, #6c63ff 0%, #7c75ff 100%)", boxShadow: "0 2px 8px rgba(108,99,255,0.28)" }}
-                  >
-                    {msg.content}
-                  </div>
-                ) : (
-                  <div
-                    className="w-full max-w-[82%] rounded-[15px] rounded-bl-[4px] border border-border bg-card px-5 py-4"
-                    style={{ boxShadow: "0 1px 3px rgba(38,37,30,0.05), 0 4px 16px rgba(38,37,30,0.07)" }}
-                  >
-                    <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-foreground">{msg.content}</pre>
-                    {msg.gov && <GovernanceReport gov={msg.gov} />}
-                  </div>
-                )}
-              </div>
-            ))}
+              {messages.length === 0 && !isLoading && (
+                <EmptyState onPick={(p) => submit(p)} />
+              )}
 
-            {isLoading && (
-              <div className="flex justify-start">
-                <div className="rounded-[15px] rounded-bl-[4px] border border-border bg-card px-5 py-4" style={{ boxShadow: "0 1px 3px rgba(38,37,30,0.05), 0 4px 16px rgba(38,37,30,0.07)" }}>
-                  <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
-                    <Loader2 className="w-4 h-4 animate-spin text-[#6c63ff]" />
-                    {loadingMsg}
-                  </div>
+              {messages.map((msg, i) => (
+                <div key={i} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
+                  {msg.role === "user" ? (
+                    <div
+                      className="max-w-[78%] rounded-[18px] rounded-br-[4px] px-4 py-2.5 text-sm text-white animate-in fade-in slide-in-from-right-2 duration-200"
+                      style={{
+                        background:
+                          "linear-gradient(135deg, var(--brand-from) 0%, var(--brand-via) 60%, var(--brand-to) 100%)",
+                        boxShadow:
+                          "0 0 0 1px rgba(139,127,255,0.4), 0 8px 24px rgba(139,127,255,0.25), inset 0 1px 0 rgba(255,255,255,0.2)",
+                      }}
+                    >
+                      {msg.content}
+                    </div>
+                  ) : (
+                    <div className="vellum-card w-full max-w-[92%] rounded-[16px] rounded-bl-[4px] px-5 py-4 animate-in fade-in slide-in-from-left-2 duration-200">
+                      <Markdown>{msg.content}</Markdown>
+                      {msg.report && <QualityReport report={msg.report} />}
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              ))}
+
+              {isLoading && (
+                <DebateStatus
+                  phase={phase === "idle" ? "writer" : phase}
+                  round={currentRound}
+                  maxRounds={settings.maxRounds}
+                  message={phaseMsg}
+                />
+              )}
+
+            </div>
           </div>
 
           {/* Input */}
-          <div className="px-6 pb-6 pt-3 border-t border-border bg-background">
-            <div
-              className="flex items-center gap-2 bg-card border border-border rounded-full px-4 py-2.5 transition-all focus-within:border-[#6c63ff]/60 focus-within:shadow-[0_0_0_3px_rgba(108,99,255,0.12)]"
-              style={{ boxShadow: "0 2px 12px rgba(38,37,30,0.07)" }}
-            >
-              <input
-                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground text-foreground"
-                placeholder="Describe a layout or ask Vellum to audit a design decision…"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit() } }}
-                disabled={isLoading}
-              />
-              <Button
-                size="icon"
-                className="rounded-full w-8 h-8 flex-shrink-0 border-0 disabled:opacity-40"
-                style={{ background: "linear-gradient(135deg, #6c63ff, #7c75ff)" }}
-                onClick={handleSubmit}
-                disabled={!input.trim() || isLoading}
+          <div className="px-6 pb-5 pt-3 border-t border-border/80 bg-background/60 backdrop-blur-xl">
+            <div className="max-w-3xl mx-auto">
+              <div
+                className="flex items-center gap-2 rounded-full px-4 py-2.5 transition-all focus-within:border-[color:var(--brand-via)]/50 focus-within:shadow-[0_0_0_4px_rgba(139,127,255,0.1)]"
+                style={{
+                  background: "var(--card)",
+                  border: "1px solid var(--border)",
+                  boxShadow: "var(--shadow-raised)",
+                }}
               >
-                {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-              </Button>
+                <input
+                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground text-foreground"
+                  placeholder="Describe a design decision — a button, a layout, a color choice…"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault()
+                      submit(input)
+                    }
+                  }}
+                  disabled={isLoading}
+                />
+                <Button
+                  size="icon"
+                  className="rounded-full w-8 h-8 flex-shrink-0 border-0 disabled:opacity-40 transition-transform hover:scale-105 active:scale-95"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, var(--brand-from), var(--brand-via), var(--brand-to))",
+                    boxShadow: "var(--shadow-brand)",
+                  }}
+                  onClick={() => submit(input)}
+                  disabled={!input.trim() || isLoading}
+                >
+                  {isLoading
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin text-background" />
+                    : <Send className="w-3.5 h-3.5 text-background" />}
+                </Button>
+              </div>
+              <p className="text-center text-[10px] font-mono tracking-wider uppercase text-muted-foreground mt-2">
+                Every answer is graded · Stays on your laptop
+              </p>
             </div>
-            <p className="text-center text-[10px] text-muted-foreground mt-2">
-              Press <kbd className="font-mono bg-muted border border-border px-1 py-0.5 rounded text-[10px]">Enter</kbd> to send
-            </p>
           </div>
         </main>
       </div>

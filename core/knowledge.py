@@ -7,6 +7,11 @@ from langchain_chroma import Chroma
 DATA_PATH = "data"
 CHROMA_PATH = "db"
 
+# Read once so ingest and query use the same model. The db on disk was built with
+# all-MiniLM-L6-v2; changing this env var without re-ingesting will make retrieval
+# return garbage. Keep the default aligned with the shipped db.
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+
 # Files that don't apply to all platforms — key = filename stem, value = scope tag
 # "all" = universal; other tags matched in server/app.py PLATFORM_SCOPE_MAP
 PLATFORM_RESTRICTED = {
@@ -50,7 +55,7 @@ def ingest_data():
         return
 
     # 4. Create Embeddings
-    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
 
     # 5. Store in Chroma
     vectorstore = Chroma.from_documents(
@@ -62,5 +67,5 @@ def ingest_data():
     print(f"✅ Success! Vellum's brain is now populated with {len(splits)} design heuristics.")
 
 def get_vectorstore():
-    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
     return Chroma(persist_directory=CHROMA_PATH, embedding_function=embeddings)

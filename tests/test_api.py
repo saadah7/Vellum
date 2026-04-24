@@ -46,3 +46,25 @@ class TestInterrogateEndpoint:
             headers={"Origin": "http://localhost:3000", "Access-Control-Request-Method": "POST"},
         )
         assert res.headers.get("access-control-allow-origin") == "http://localhost:3000"
+
+
+class TestHealthEndpoint:
+    """The /health endpoint should always return, even when services are down —
+    the UI depends on it to render a red/green indicator at startup."""
+
+    def test_returns_expected_shape(self):
+        res = client.get("/health")
+        assert res.status_code == 200
+        body = res.json()
+        for key in ("ollama", "rag", "rag_docs", "ready"):
+            assert key in body
+        assert isinstance(body["ollama"], bool)
+        assert isinstance(body["rag"], bool)
+        assert isinstance(body["ready"], bool)
+        assert isinstance(body["rag_docs"], int)
+
+    def test_ready_is_conjunction(self):
+        """ready == ollama AND rag — no other combination."""
+        res = client.get("/health")
+        body = res.json()
+        assert body["ready"] == (body["ollama"] and body["rag"])
