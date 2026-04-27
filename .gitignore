@@ -266,3 +266,8 @@ ui/.env*
 # ── Presentation exports ──────────────────────────────────────────
 *.pptx
 *.js.bak
+
+# ── Generated docs and build helpers ─────────────────────────────
+Vellum_*.pdf
+docs/
+scripts/build_docs.py
