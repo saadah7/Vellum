@@ -207,10 +207,10 @@ export default function VellumApp() {
               )}
 
               {messages.map((msg, i) => (
-                <div key={i} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
+                <div key={i} className={cn("flex min-w-0", msg.role === "user" ? "justify-end" : "justify-start")}>
                   {msg.role === "user" ? (
                     <div
-                      className="max-w-[78%] rounded-[18px] rounded-br-[4px] px-4 py-2.5 text-sm text-white animate-in fade-in slide-in-from-right-2 duration-200"
+                      className="max-w-[78%] rounded-[18px] rounded-br-[4px] px-4 py-2.5 text-sm text-white whitespace-pre-wrap break-words animate-in fade-in slide-in-from-right-2 duration-200"
                       style={{
                         background:
                           "linear-gradient(135deg, var(--brand-from) 0%, var(--brand-via) 60%, var(--brand-to) 100%)",
@@ -221,7 +221,7 @@ export default function VellumApp() {
                       {msg.content}
                     </div>
                   ) : (
-                    <div className="vellum-card w-full max-w-[92%] rounded-[16px] rounded-bl-[4px] px-5 py-4 animate-in fade-in slide-in-from-left-2 duration-200">
+                    <div className="vellum-card w-full min-w-0 max-w-[92%] rounded-[16px] rounded-bl-[4px] px-5 py-4 animate-in fade-in slide-in-from-left-2 duration-200">
                       <Markdown>{msg.content}</Markdown>
                       {msg.report && <QualityReport report={msg.report} />}
                     </div>

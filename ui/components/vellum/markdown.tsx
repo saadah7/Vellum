@@ -28,7 +28,7 @@ export function Markdown({ children }: { children: string }) {
             if (isInline) {
               return (
                 <code
-                  className="rounded-md bg-[color:var(--brand-soft)] text-[color:var(--brand-via)] px-1.5 py-0.5 text-[0.85em] font-mono font-medium"
+                  className="rounded-md bg-[color:var(--brand-soft)] text-[color:var(--brand-via)] px-1.5 py-0.5 text-[0.85em] font-mono font-medium break-words"
                   {...props}
                 >
                   {children}
@@ -36,12 +36,16 @@ export function Markdown({ children }: { children: string }) {
               )
             }
             return (
-              <code className="block overflow-x-auto rounded-lg bg-black/40 border border-border px-3 py-2 text-xs font-mono leading-relaxed text-foreground/90" {...props}>
+              <code className="block text-xs font-mono leading-relaxed text-foreground/90" {...props}>
                 {children}
               </code>
             )
           },
-          pre: ({ children }) => <pre className="mb-3 last:mb-0">{children}</pre>,
+          pre: ({ children }) => (
+            <pre className="mb-3 last:mb-0 max-w-full overflow-x-auto rounded-lg bg-black/40 border border-border px-3 py-2">
+              {children}
+            </pre>
+          ),
           blockquote: ({ children }) => (
             <blockquote className="border-l-2 border-[color:var(--brand-via)]/50 pl-3 my-3 text-muted-foreground italic">
               {children}
