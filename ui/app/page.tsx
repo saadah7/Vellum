@@ -186,7 +186,7 @@ export default function VellumApp() {
 
   return (
     <TooltipProvider>
-      <div className="flex flex-col h-screen bg-background font-sans overflow-hidden">
+      <div className="flex flex-col h-screen font-sans overflow-hidden">
 
         <TopBar settings={settings} onChange={patchSettings} onReset={handleReset} />
 
