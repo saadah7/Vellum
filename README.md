@@ -204,4 +204,4 @@ cd ui && npm test
 ## Team
 
 Saad Abdul Hakeem · Shaikh Mustafa · M A Naser Askari
-CSE Major Project 8th Semester
+CSE Major Project
