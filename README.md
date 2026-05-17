@@ -1,4 +1,4 @@
-8# Vellum
+98# Vellum
 
 **AI design reviewer that checks its own work.**
 
@@ -204,7 +204,4 @@ cd ui && npm test
 ## Team
 
 Saad Abdul Hakeem · Shaikh Mustafa · M A Naser Askari
-CSE Major Project
-161022733073
-161022733068
-161022733070
+CSE Major project
