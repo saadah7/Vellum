@@ -1,0 +1,40 @@
+{
+  // Point VS Code at the project venv. New terminals will use this Python
+  // automatically — no need to run `activate.ps1` and no execution-policy errors.
+  "python.defaultInterpreterPath": "${workspaceFolder}/venv/Scripts/python.exe",
+
+  // Activate the venv automatically in every integrated terminal.
+  "python.terminal.activateEnvironment": true,
+  "python.terminal.activateEnvInCurrentTerminal": true,
+
+  // Environment variables for every terminal opened in this workspace.
+  "terminal.integrated.env.windows": {
+    "PYTHONPATH": "${workspaceFolder}",
+    "PYTHONIOENCODING": "utf-8"
+  },
+  "terminal.integrated.env.linux": {
+    "PYTHONPATH": "${workspaceFolder}",
+    "PYTHONIOENCODING": "utf-8"
+  },
+  "terminal.integrated.env.osx": {
+    "PYTHONPATH": "${workspaceFolder}",
+    "PYTHONIOENCODING": "utf-8"
+  },
+
+  // PowerShell is the default Windows terminal in modern VS Code; explicitly pin
+  // it so the demo laptop doesn't fall back to an older cmd profile.
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+
+  // Don't pop up Pylance reanalysis prompts during a live demo.
+  "python.analysis.diagnosticMode": "openFilesOnly",
+
+  // Hide noisy folders from the file tree during the demo.
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/node_modules": true,
+    "**/.next": true,
+    "venv": true,
+    "db": true
+  }
+}

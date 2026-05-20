@@ -64,7 +64,7 @@ def ingest_data():
         persist_directory=CHROMA_PATH
     )
     
-    print(f"✅ Success! Vellum's brain is now populated with {len(splits)} design heuristics.")
+    print(f"[OK] Success! Vellum's brain is now populated with {len(splits)} design heuristics.")
 
 def get_vectorstore():
     embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
