@@ -201,6 +201,6 @@ cd ui && npm test
 
 ---
 
-## Team
+## Teamm
 
 Saad Abdul Hakeem · Shaikh Mustafa · M A Naser Askari
